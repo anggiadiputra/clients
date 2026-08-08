@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { createClient } from '../lib/api';
 
@@ -22,6 +22,20 @@ export default function AddClientModal({ open, onClose, onCreated, defaultStatus
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setForm({
+        name: '',
+        email: '',
+        whatsapp: '',
+        website: '',
+        address: '',
+        status: defaultStatus,
+      });
+      setError('');
+    }
+  }, [open, defaultStatus]);
 
   function update(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));

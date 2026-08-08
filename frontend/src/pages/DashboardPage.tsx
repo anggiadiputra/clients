@@ -205,7 +205,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <AddClientModal open={showModal} onClose={() => setShowModal(false)} onCreated={load} />
+      <AddClientModal open={showModal} onClose={() => setShowModal(false)} onCreated={load} defaultStatus="KERJAKAN" />
     </div>
   );
 }
