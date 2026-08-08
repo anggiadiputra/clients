@@ -143,12 +143,12 @@ Jalankan perintah **Fix 1-Liner** di bawah ini (akan otomatis menambahkan `safe.
 
 #### 🛠️ Fix & Build — FRONTEND (`crm.diurusin.id`):
 ```bash
-git config --global --add safe.directory '*' && cd /home/diurusin-crm/htdocs/crm.diurusin.id && git init 2>/dev/null || true && git remote remove origin 2>/dev/null || true && git remote add origin https://github.com/anggiadiputra/clients.git && git fetch origin && git reset --hard origin/main && cd frontend && npm install && npm run build
+git config --global --add safe.directory '*' && cd /home/diurusin-crm/htdocs/crm.diurusin.id && git init 2>/dev/null || true && git remote remove origin 2>/dev/null || true && git remote add origin https://github.com/anggiadiputra/clients.git && git fetch origin && git reset --hard origin/main && cd frontend && echo "VITE_API_URL=https://apis.diurusin.id" > .env && npm install && npm run build
 ```
 
 #### 🛠️ Fix & Build — BACKEND (`apis.diurusin.id`):
 ```bash
-git config --global --add safe.directory '*' && cd /home/diurusin-apis/htdocs/apis.diurusin.id && git init 2>/dev/null || true && git remote remove origin 2>/dev/null || true && git remote add origin https://github.com/anggiadiputra/clients.git && git fetch origin && git reset --hard origin/main && cd backend && cp ../.env .env 2>/dev/null || true && npm install && npx prisma db push && npm run build && pm2 restart ecosystem.config.cjs
+git config --global --add safe.directory '*' && cd /home/diurusin-apis/htdocs/apis.diurusin.id && git init 2>/dev/null || true && git remote remove origin 2>/dev/null || true && git remote add origin https://github.com/anggiadiputra/clients.git && git fetch origin && git reset --hard origin/main && cd backend && cp ../.env .env 2>/dev/null || true && npm install && npx prisma db push && npm run build && pm2 restart ecosystem.config.cjs || pm2 start ecosystem.config.cjs
 ```
 
 ---
@@ -157,12 +157,12 @@ git config --global --add safe.directory '*' && cd /home/diurusin-apis/htdocs/ap
 
 #### Update FRONTEND Dashboard (`crm.diurusin.id`):
 ```bash
-cd /home/diurusin-crm/htdocs/crm.diurusin.id && git fetch origin && git reset --hard origin/main && cd frontend && npm install && npm run build
+cd /home/diurusin-crm/htdocs/crm.diurusin.id && git fetch origin && git reset --hard origin/main && cd frontend && echo "VITE_API_URL=https://apis.diurusin.id" > .env && npm install && npm run build
 ```
 
 #### Update BACKEND API (`apis.diurusin.id`):
 ```bash
-cd /home/diurusin-apis/htdocs/apis.diurusin.id && git fetch origin && git reset --hard origin/main && cd backend && cp ../.env .env 2>/dev/null || true && npm install && npx prisma db push && npm run build && pm2 restart ecosystem.config.cjs
+cd /home/diurusin-apis/htdocs/apis.diurusin.id && git fetch origin && git reset --hard origin/main && cd backend && cp ../.env .env 2>/dev/null || true && npm install && npx prisma db push && npm run build && pm2 restart ecosystem.config.cjs || pm2 start ecosystem.config.cjs
 ```
 
 ---
