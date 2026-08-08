@@ -7,8 +7,8 @@ import type { Client, Status } from '../lib/types';
 import { Link } from 'react-router-dom';
 import AddClientModal from '../components/AddClientModal';
 
-// Kanban pipeline: calon client → follow up → deal. Begitu deal, pindah ke KERJAKAN di /clients.
-const PIPELINE_STATUSES: Status[] = ['CALON_CLIENT', 'FOLLOW_UP', 'DEAL'];
+// Kanban pipeline: calon client → follow up. Begitu deal, pindah ke KERJAKAN di /clients.
+const PIPELINE_STATUSES: Status[] = ['CALON_CLIENT', 'FOLLOW_UP'];
 
 export default function KanbanPage() {
   const [clients, setClients] = useState<Client[]>([]);

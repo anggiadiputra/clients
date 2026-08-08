@@ -124,20 +124,66 @@ export default function AddClientModal({ open, onClose, onCreated, defaultStatus
             />
           </div>
 
+          {/* Tipe Client Selector Cards */}
           <div>
-            <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Status Client</label>
+            <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1.5">Tipe Kategori Client *</label>
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => update('status', 'KERJAKAN')}
+                className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                  ['KERJAKAN', 'SELESAI', 'MASA_GARANSI', 'DEAL'].includes(form.status)
+                    ? 'border-black bg-black text-white shadow-sm'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full mb-1">
+                  <span className="text-xs font-bold">💼 Pelanggan</span>
+                  {['KERJAKAN', 'SELESAI', 'MASA_GARANSI', 'DEAL'].includes(form.status) && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                  )}
+                </div>
+                <p className={`text-[11px] leading-tight ${['KERJAKAN', 'SELESAI', 'MASA_GARANSI', 'DEAL'].includes(form.status) ? 'text-gray-300' : 'text-gray-500'}`}>
+                  Sudah / pernah kerja sama
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => update('status', 'CALON_CLIENT')}
+                className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                  ['CALON_CLIENT', 'FOLLOW_UP'].includes(form.status)
+                    ? 'border-black bg-black text-white shadow-sm'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full mb-1">
+                  <span className="text-xs font-bold">🎯 Calon Pelanggan</span>
+                  {['CALON_CLIENT', 'FOLLOW_UP'].includes(form.status) && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                  )}
+                </div>
+                <p className={`text-[11px] leading-tight ${['CALON_CLIENT', 'FOLLOW_UP'].includes(form.status) ? 'text-gray-300' : 'text-gray-500'}`}>
+                  Prospek belum kerja sama
+                </p>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Detail Status Client</label>
             <select
               value={form.status}
               onChange={(e) => update('status', e.target.value)}
               className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800 bg-white"
             >
-              <optgroup label="💼 Pelanggan (Kerja Sama)">
+              <optgroup label="💼 Pelanggan (Sudah / Sedang Kerja Sama)">
                 <option value="KERJAKAN">Sedang Dikerjakan</option>
                 <option value="SELESAI">Selesai Kerja Sama</option>
                 <option value="MASA_GARANSI">Masa Garansi</option>
                 <option value="DEAL">Deal</option>
               </optgroup>
-              <optgroup label="🎯 Calon Pelanggan">
+              <optgroup label="🎯 Calon Pelanggan (Belum Kerja Sama)">
                 <option value="CALON_CLIENT">Calon Client (Prospek Baru)</option>
                 <option value="FOLLOW_UP">Follow Up</option>
               </optgroup>

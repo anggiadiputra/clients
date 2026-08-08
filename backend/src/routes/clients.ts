@@ -15,11 +15,13 @@ const clientsResponse = (clients: any[]) =>
 router.get('/', async (req: Request, res: Response) => {
   try {
     const { search, status } = req.query;
-    const statusList = Array.isArray(status)
-      ? status.filter((s): s is string => typeof s === 'string')
-      : typeof status === 'string' && status
-        ? [status]
-        : [];
+    let statusList: string[] = [];
+    if (Array.isArray(status)) {
+      statusList = status.flatMap((s) => (typeof s === 'string' ? s.split(',') : []));
+    } else if (typeof status === 'string' && status) {
+      statusList = status.split(',');
+    }
+    statusList = statusList.map((s) => s.trim()).filter(Boolean);
 
     const where: any = {};
     if (search && typeof search === 'string') {
