@@ -37,9 +37,10 @@ cd /home/diurusin-apis/htdocs/apis.diurusin.id
 # Jika folder htdocs belum kosong, bersihkan dulu
 rm -rf *
 
-# Clone repository
+# Clone repository langsung ke folder saat ini (perhatikan tanda titik '.' di akhir)
 git clone https://github.com/anggiadiputra/clients.git .
 ```
+> 💡 **Tips**: Tanda titik `.` di akhir perintah `git clone` memastikan semua file di-clone **langsung** ke dalam `/home/diurusin-apis/htdocs/apis.diurusin.id/` (sehingga struktur folder menjadi `apis.diurusin.id/backend`), bukan membuat subfolder baru `apis.diurusin.id/clients/backend`.
 
 ### 2. Setup Environment Variable Backend (`.env`)
 Buat file `.env` di dalam folder `backend/`:
