@@ -157,12 +157,12 @@ git config --global --add safe.directory '*' && cd /home/diurusin-apis/htdocs/ap
 
 #### Update BACKEND API (`apis.diurusin.id`):
 ```bash
-cd /home/diurusin-apis/htdocs/apis.diurusin.id && git pull origin main && cd backend && cp ../.env .env 2>/dev/null || true && npm install && npx prisma db push && npm run build && (pm2 restart ecosystem.config.cjs || pm2 start ecosystem.config.cjs)
+cd /home/diurusin-apis/htdocs/apis.diurusin.id && git pull origin main && npm install && npx prisma db push && npm run build && (pm2 restart ecosystem.config.cjs || pm2 start ecosystem.config.cjs)
 ```
 
 #### Update FRONTEND Dashboard (`crm.diurusin.id`):
 ```bash
-cd /home/diurusin-crm/htdocs/crm.diurusin.id && git pull origin main && cd frontend && echo "VITE_API_URL=https://apis.diurusin.id" > .env && npm install && npm run build && rsync -av --delete ../dist/ /home/diurusin-crm/htdocs/crm.diurusin.id/dist/
+cd /home/diurusin-crm/htdocs/crm.diurusin.id && git pull origin main && echo "VITE_API_URL=https://apis.diurusin.id" > .env && npm install && npm run build
 ```
 
 ---
