@@ -6,6 +6,10 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
+  build: {
+    outDir: '../dist',
+    emptyOutDir: true,
+  },
   server: {
     proxy: {
       '/api': 'http://localhost:3003',
