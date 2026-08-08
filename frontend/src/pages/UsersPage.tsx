@@ -1,0 +1,400 @@
+import { useState, useEffect } from 'react';
+import { Users as UsersIcon, Plus, X, ShieldCheck, KeyRound, Trash2, CheckCircle2 } from 'lucide-react';
+import {
+  fetchUsers, createUser, updateUserRole, deleteUser, adminResetPassword,
+  type ManagedUser,
+} from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
+
+const ROLES = ['ADMIN', 'STAFF', 'VIEWER'] as const;
+const ROLE_LABELS: Record<string, string> = {
+  ADMIN: 'Admin',
+  STAFF: 'Staff',
+  VIEWER: 'Viewer',
+};
+const ROLE_COLORS: Record<string, string> = {
+  ADMIN: 'bg-black text-white border-black',
+  STAFF: 'bg-blue-50 text-blue-700 border-blue-100',
+  VIEWER: 'bg-gray-50 text-gray-600 border-gray-200',
+};
+
+export default function UsersPage() {
+  const { user: me, refreshUser } = useAuth();
+  const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [resetTarget, setResetTarget] = useState<ManagedUser | null>(null);
+  const [globalMsg, setGlobalMsg] = useState<string | null>(null);
+  const [globalErr, setGlobalErr] = useState<string | null>(null);
+  const [selfRoleChanged, setSelfRoleChanged] = useState(false);
+
+  async function load() {
+    try {
+      const data = await fetchUsers();
+      setUsers(data);
+    } catch (err: any) {
+      setGlobalErr(err.message || 'Gagal memuat user');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  // Auto-dismiss messages
+  useEffect(() => {
+    if (globalMsg || globalErr) {
+      const t = setTimeout(() => { setGlobalMsg(null); setGlobalErr(null); }, 4000);
+      return () => clearTimeout(t);
+    }
+  }, [globalMsg, globalErr]);
+
+  async function changeRole(target: ManagedUser, newRole: ManagedUser['role']) {
+    try {
+      await updateUserRole(target.id, newRole);
+      setGlobalMsg(`Role ${target.email} → ${ROLE_LABELS[newRole]}`);
+      if (me?.id === target.id) {
+        setSelfRoleChanged(true);
+      } else {
+        load();
+      }
+    } catch (err: any) {
+      setGlobalErr(err.message || 'Gagal mengubah role');
+    }
+  }
+
+  async function applySelfRefresh() {
+    await refreshUser();
+    setSelfRoleChanged(false);
+    load();
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Manajemen User</h1>
+        </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="p-2 sm:px-4 sm:py-2 bg-black text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+          aria-label="Tambah user"
+        >
+          <Plus className="w-4 h-4" />
+          <span className="hidden sm:inline">Tambah User</span>
+        </button>
+      </div>
+
+      {globalMsg && (
+        <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-800 text-sm font-medium flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          {globalMsg}
+        </div>
+      )}
+      {globalErr && (
+        <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-800 text-sm font-medium">
+          {globalErr}
+        </div>
+      )}
+
+      {selfRoleChanged && (
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-amber-800 text-sm">
+          <p className="font-medium">
+            Role akun Anda baru saja diubah. Sidebar akan terupdate setelah klik tombol di samping, atau logout-login.
+          </p>
+          <button
+            onClick={applySelfRefresh}
+            className="self-start sm:self-auto px-3 py-1.5 bg-black text-white text-xs font-semibold rounded-lg hover:bg-gray-800 transition-colors"
+          >
+            Refresh Sesi Saya
+          </button>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-100">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Nama</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Email</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {loading ? (
+                <tr><td colSpan={4} className="px-4 py-10 text-center text-gray-400">Memuat...</td></tr>
+              ) : users.length === 0 ? (
+                <tr><td colSpan={4} className="px-4 py-10 text-center text-gray-400">Belum ada user</td></tr>
+              ) : users.map((u) => {
+                const isMe = me?.id === u.id;
+                return (
+                  <tr key={u.id} className="hover:bg-gray-50/50">
+                    <td className="px-4 py-3">
+                      <p className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                        {u.name || <span className="text-gray-400 italic font-normal">Tanpa nama</span>}
+                        {isMe && <span className="text-[10px] font-bold uppercase text-gray-400">(Anda)</span>}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-600 font-mono break-all">{u.email}</td>
+                    <td className="px-4 py-3">
+                      <select
+                        value={u.role}
+                        onChange={(e) => changeRole(u, e.target.value as ManagedUser['role'])}
+                        className={`px-2 py-1 rounded-full text-xs font-bold border ${ROLE_COLORS[u.role]} focus:outline-none`}
+                      >
+                        {ROLES.map((r) => (
+                          <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-1">
+                        <button
+                          onClick={() => setResetTarget(u)}
+                          className="p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
+                          aria-label={`Reset password ${u.email}`}
+                          title="Reset password"
+                        >
+                          <KeyRound className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!confirm(`Hapus user ${u.email}? Tindakan ini tidak dapat dibatalkan.`)) return;
+                            try {
+                              await deleteUser(u.id);
+                              setGlobalMsg(`User ${u.email} dihapus`);
+                              load();
+                            } catch (err: any) {
+                              setGlobalErr(err.message || 'Gagal menghapus user');
+                            }
+                          }}
+                          disabled={isMe}
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          aria-label={`Hapus user ${u.email}`}
+                          title={isMe ? 'Tidak dapat menghapus akun sendiri' : 'Hapus user'}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile cards */}
+        <div className="block md:hidden divide-y divide-gray-100">
+          {users.map((u) => {
+            const isMe = me?.id === u.id;
+            return (
+              <div key={u.id} className="p-4 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{u.name || 'Tanpa nama'}</p>
+                    <p className="text-xs text-gray-500 font-mono truncate">{u.email}</p>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${ROLE_COLORS[u.role]}`}>
+                    {ROLE_LABELS[u.role]}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <select
+                    value={u.role}
+                    onChange={(e) => changeRole(u, e.target.value as ManagedUser['role'])}
+                    className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold border ${ROLE_COLORS[u.role]}`}
+                  >
+                    {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                  </select>
+                  <button
+                    onClick={() => setResetTarget(u)}
+                    className="p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg"
+                    aria-label="Reset password"
+                  ><KeyRound className="w-3.5 h-3.5" /></button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`Hapus ${u.email}?`)) return;
+                      try { await deleteUser(u.id); load(); setGlobalMsg('User dihapus'); }
+                      catch (err: any) { setGlobalErr(err.message || 'Gagal'); }
+                    }}
+                    disabled={isMe}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-30"
+                    aria-label="Hapus user"
+                  ><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {!loading && users.length === 0 && (
+          <div className="text-center py-16 p-6 block md:hidden">
+            <UsersIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+            <p className="text-sm font-medium text-gray-500">Belum ada user lain</p>
+          </div>
+        )}
+      </div>
+
+      {showAddModal && (
+        <AddUserModal
+          onClose={() => setShowAddModal(false)}
+          onCreated={() => { setShowAddModal(false); setGlobalMsg('User baru berhasil dibuat'); load(); }}
+          onError={(msg) => setGlobalErr(msg)}
+        />
+      )}
+
+      {resetTarget && (
+        <ResetPasswordModal
+          target={resetTarget}
+          onClose={() => setResetTarget(null)}
+          onDone={() => { setResetTarget(null); setGlobalMsg(`Password ${resetTarget.email} direset`); }}
+          onError={(msg) => setGlobalErr(msg)}
+        />
+      )}
+    </div>
+  );
+}
+
+function AddUserModal({ onClose, onCreated, onError }: {
+  onClose: () => void; onCreated: () => void;
+  onError: (msg: string) => void;
+}) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState<'ADMIN' | 'STAFF' | 'VIEWER'>('STAFF');
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (password.length < 6) {
+      onError('Password minimal 6 karakter');
+      return;
+    }
+    setLoading(true);
+    try {
+      await createUser({ name: name || undefined, email, password, role });
+      onCreated();
+    } catch (err: any) {
+      onError(err.message || 'Gagal membuat user');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-xl max-w-md w-full overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-b border-gray-100">
+          <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-gray-700" />
+            Tambah User Baru
+          </h2>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Nama</label>
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)}
+              className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-black"
+              placeholder="Opsional" />
+          </div>
+          <div>
+            <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Email *</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
+              className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-black" />
+          </div>
+          <div>
+            <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Password *</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
+              className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-black"
+              placeholder="Minimal 6 karakter" />
+          </div>
+          <div>
+            <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Role</label>
+            <select value={role} onChange={(e) => setRole(e.target.value as any)}
+              className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-black">
+              {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+            </select>
+            <p className="text-[11px] text-gray-400 mt-1">Hak akses halaman diatur di menu Hak Akses.</p>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 border border-gray-200 hover:bg-gray-50 text-sm font-semibold rounded-lg text-gray-700">Batal</button>
+            <button type="submit" disabled={loading}
+              className="px-5 py-2 bg-black hover:bg-gray-800 disabled:opacity-50 text-sm font-semibold rounded-lg text-white">
+              {loading ? 'Membuat...' : 'Buat User'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function ResetPasswordModal({ target, onClose, onDone, onError }: {
+  target: ManagedUser;
+  onClose: () => void; onDone: () => void;
+  onError: (msg: string) => void;
+}) {
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (password.length < 6) {
+      onError('Password minimal 6 karakter');
+      return;
+    }
+    setLoading(true);
+    try {
+      await adminResetPassword(target.id, password);
+      onDone();
+    } catch (err: any) {
+      onError(err.message || 'Gagal reset password');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-xl max-w-md w-full overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-b border-gray-100">
+          <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+            <KeyRound className="w-4 h-4 text-gray-700" />
+            Reset Password
+          </h2>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <p className="text-sm text-gray-600">
+            Password baru untuk <span className="font-mono font-semibold">{target.email}</span>.
+          </p>
+          <div>
+            <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Password Baru</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
+              className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-black"
+              placeholder="Minimal 6 karakter" />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 border border-gray-200 hover:bg-gray-50 text-sm font-semibold rounded-lg text-gray-700">Batal</button>
+            <button type="submit" disabled={loading}
+              className="px-5 py-2 bg-black hover:bg-gray-800 disabled:opacity-50 text-sm font-semibold rounded-lg text-white">
+              {loading ? 'Menyimpan...' : 'Reset Password'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

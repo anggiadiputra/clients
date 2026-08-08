@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment & local files
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Build outputs
+dist/
+**/dist/
+
+# Archives & Temporary
+*.zip
+**/*.zip
+.DS_Store
+**/.DS_Store
+.zcode/
+
+# Root files (only backend/ and frontend/ folders are tracked)
+/aapanel.md
+/cloudpanel.md
+/kirisan.md
+/design.md
+/deploy.sh
+/ecosystem.config.cjs
+/package.json
+/package-lock.json
+/prisma/

@@ -1,0 +1,246 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Status {
+  CALON_CLIENT
+  FOLLOW_UP
+  DEAL
+  KERJAKAN
+  MASA_GARANSI
+  SELESAI
+}
+
+model Client {
+  id         Int        @id @default(autoincrement())
+  displayId  String     @unique
+  name       String
+  email      String?
+  whatsapp   String?
+  isWhatsappValid Boolean?
+  website    String?
+  address    String?   @db.Text
+  status     Status     @default(CALON_CLIENT)
+  notes      Note[]
+  activities Activity[]
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  invoices   Invoice[]
+  projects   Project[]
+
+  @@index([status])
+  @@index([updatedAt])
+}
+
+enum UserRole {
+  ADMIN
+  STAFF
+  VIEWER
+}
+
+model User {
+  id          Int      @id @default(autoincrement())
+  email       String   @unique
+  password    String
+  name        String?
+  role        UserRole @default(STAFF)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  projectsAssigned Project[] @relation("ProjectAssignee")
+  projectComments  ProjectComment[]
+  projectAttachments ProjectAttachment[]
+  projectActivities ProjectActivity[]
+}
+
+model PageAccess {
+  id       Int      @id @default(autoincrement())
+  role     UserRole
+  pageKey  String
+  allowed  Boolean  @default(false)
+
+  @@unique([role, pageKey])
+  @@index([role])
+}
+
+model OtpCode {
+  id        Int      @id @default(autoincrement())
+  email     String
+  code      String
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PAID
+  CANCELLED
+}
+
+model Invoice {
+  id            Int           @id @default(autoincrement())
+  invoiceNumber String        @unique
+  clientId      Int
+  client        Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  issueDate     DateTime      @default(now())
+  dueDate       DateTime
+  subtotal      Float
+  discount      Float         @default(0)
+  discountAmount Float        @default(0)
+  tax           Float         @default(0)
+  taxAmount     Float         @default(0)
+  total         Float
+  status        InvoiceStatus @default(UNPAID)
+  notes         String?   @db.Text
+  items         InvoiceItem[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([clientId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model InvoiceItem {
+  id          Int     @id @default(autoincrement())
+  invoiceId   Int
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Int     @default(1)
+  unitPrice   Float
+  amount      Float
+
+  @@index([invoiceId])
+}
+
+model Setting {
+  key   String @id
+  value String @default("") @db.Text
+}
+
+model Service {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?   @db.Text
+  price       Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Note {
+  id        Int      @id @default(autoincrement())
+  content   String   @db.Text
+  clientId  Int
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([clientId])
+}
+
+model Activity {
+  id        Int      @id @default(autoincrement())
+  action    String
+  clientId  Int
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([clientId])
+}
+
+enum ProjectStatus {
+  MULAI
+  PENGERJAAN
+  REVIEW
+  REVISI
+  SELESAI
+}
+
+enum ProjectPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ProjectActivityKind {
+  CREATE
+  STATUS_CHANGE
+  COMMENT
+  ATTACHMENT
+  ASSIGNEE_CHANGE
+  UPDATE
+}
+
+model Project {
+  id          Int              @id @default(autoincrement())
+  title       String
+  description String?          @db.Text
+  status      ProjectStatus    @default(MULAI)
+  priority    ProjectPriority  @default(MEDIUM)
+  dueDate     DateTime?
+  value       Decimal?         @db.Decimal(15, 2)
+  commission  Decimal?         @db.Decimal(15, 2)
+  clientId    Int
+  client      Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  assigneeId  Int?
+  assignee    User?            @relation("ProjectAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  comments    ProjectComment[]
+  attachments ProjectAttachment[]
+  activities  ProjectActivity[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([clientId])
+  @@index([status])
+  @@index([assigneeId])
+  @@index([dueDate])
+}
+
+model ProjectComment {
+  id        Int      @id @default(autoincrement())
+  projectId Int
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+}
+
+model ProjectAttachment {
+  id           Int      @id @default(autoincrement())
+  projectId    Int
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  filename     String
+  storageKey   String
+  contentType  String
+  size         Int
+  uploadedById Int
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@index([projectId])
+}
+
+model ProjectActivity {
+  id        Int                  @id @default(autoincrement())
+  projectId Int
+  project   Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User                 @relation(fields: [userId], references: [id])
+  kind      ProjectActivityKind
+  fromValue String?
+  toValue   String?
+  createdAt DateTime             @default(now())
+
+  @@index([projectId])
+  @@index([createdAt])
+}
