@@ -21,10 +21,10 @@ const PORT = process.env.PORT || 3001;
 app.use(cors({
   origin: true,
   credentials: true,
+  optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 }));
-app.options('*', cors());
 
 app.use(express.json());
 
