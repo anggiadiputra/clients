@@ -90,6 +90,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
 
   const inFlight = useRef<AbortController | null>(null);
+  // Track whether a settings change was user-initiated (vs API hydration)
+  const dirtyRef = useRef(false);
 
   // Hydrate from API (DB) on mount when authenticated
   useEffect(() => {
@@ -142,30 +144,50 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Re-hydrate when auth becomes available (login event from AuthContext)
+  const inFlightAuth = useRef<AbortController | null>(null);
+  const lastAuthTokenRef = useRef<string>('');
+
   useEffect(() => {
     function onAuth() {
       const token = getToken();
       if (!token) return;
+      // Skip if we already hydrated for this exact token
+      if (lastAuthTokenRef.current === token) return;
+      lastAuthTokenRef.current = token;
+      // Abort any in-flight auth hydration
+      inFlightAuth.current?.abort();
+      const controller = new AbortController();
+      inFlightAuth.current = controller;
       // Try full /api/settings first (admin only); fall back to /api/settings/branding for staff.
-      fetch(`${BASE}/settings`, { headers: { Authorization: `Bearer ${token}` } })
+      fetch(`${BASE}/settings`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
         .then((res) => {
           if (res.status === 403) {
-            return fetch(`${BASE}/settings/branding`, { headers: { Authorization: `Bearer ${token}` } })
+            return fetch(`${BASE}/settings/branding`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
               .then((r) => (r.ok ? r.json() : null))
               .catch(() => null);
           }
           return res.ok ? res.json() : null;
         })
         .then((data) => {
-          if (data) {
-            setSettings((prev) => ({ ...prev, ...data }));
-            setError(null);
-            setLoaded(true);
-          }
+          if (!data) return;
+          // Only update if data actually differs to avoid re-render cascade
+          setSettings((prev) => {
+            const merged = { ...prev, ...data };
+            // Shallow compare — if all keys match, return prev (stable ref)
+            const keys = Object.keys(merged) as (keyof Settings)[];
+            const changed = keys.some((k) => prev[k] !== merged[k]);
+            return changed ? merged : prev;
+          });
+          setError(null);
+          setLoaded(true);
         })
-        .catch(() => {});
+        .catch((err) => {
+          if (err?.name === 'AbortError') return;
+        });
     }
     function onLogout() {
+      lastAuthTokenRef.current = '';
+      inFlightAuth.current?.abort();
       setSettings(defaultSettings);
       setError(null);
       setLoaded(true);
@@ -175,16 +197,18 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     return () => {
       window.removeEventListener('auth:login', onAuth);
       window.removeEventListener('auth:logout', onLogout);
+      inFlightAuth.current?.abort();
     };
   }, []);
 
-  // Debounced PUT to DB
+  // Debounced save to DB — only when user explicitly changed settings
   useEffect(() => {
-    if (!loaded) return; // don't push initial defaults before hydration
+    if (!loaded || !dirtyRef.current) return; // skip hydration & non-user changes
     const controller = new AbortController();
     const timer = setTimeout(() => {
       const token = getToken();
       if (!token) return;
+      dirtyRef.current = false;
       setSaving(true);
       fetch(`${BASE}/settings`, {
         method: 'POST',
@@ -245,6 +269,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
 
   const updateSettings = useCallback((partial: Partial<Settings>) => {
+    dirtyRef.current = true;
     setSettings((prev) => ({ ...prev, ...partial }));
   }, []);
 

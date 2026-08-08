@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react';
 import { apiLogin, apiVerifyOtp, fetchMe } from '../lib/api';
 
 export type UserRole = 'ADMIN' | 'STAFF' | 'VIEWER';
@@ -51,25 +51,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Synchronize auth state across multiple browser tabs in real-time
   useEffect(() => {
-    function handleStorageChange(e: StorageEvent) {
-      if (!e.key || e.key === 'auth_token' || e.key === 'auth_user') {
-        const token = getStoredToken();
-        const storedUser = getStoredUser();
-        setIsAuthenticated(!!token);
-        setUser(storedUser);
-      }
+    function handleStorageChange(e: Event | StorageEvent) {
+      const se = e as StorageEvent;
+      if (se.key && se.key !== 'auth_token' && se.key !== 'auth_user') return;
+      const token = getStoredToken();
+      const storedUser = getStoredUser();
+      const newAuth = !!token;
+      // Only update state when values actually changed to prevent re-render cascades
+      setIsAuthenticated((prev) => (prev === newAuth ? prev : newAuth));
+      setUser((prev) => {
+        if (prev === storedUser) return prev; // both null
+        if (!prev || !storedUser) return storedUser;
+        if (prev.id === storedUser.id && prev.role === storedUser.role && prev.email === storedUser.email && prev.name === storedUser.name) return prev;
+        return storedUser;
+      });
     }
 
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  async function loginStep1(email: string, password: string, turnstileToken?: string) {
+  const loginStep1 = useCallback(async (email: string, password: string, turnstileToken?: string) => {
     await apiLogin(email, password, turnstileToken);
     pendingEmailRef.current = email;
-  }
+  }, []);
 
-  async function loginStep2(email: string, code: string) {
+  const loginStep2 = useCallback(async (email: string, code: string) => {
     const { token, user } = await apiVerifyOtp(email, code);
     const normalized: AuthUser = { ...user, role: (user.role as UserRole) || 'STAFF' };
     localStorage.setItem('auth_token', token);
@@ -80,18 +87,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Dispatch event for other listeners in current tab if needed
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new Event('auth:login'));
-  }
+  }, []);
 
-  function updateUser(updatedUser: AuthUser, newToken?: string) {
+  const updateUser = useCallback((updatedUser: AuthUser, newToken?: string) => {
     if (newToken) {
       localStorage.setItem('auth_token', newToken);
     }
     localStorage.setItem('auth_user', JSON.stringify(updatedUser));
     setUser(updatedUser);
     window.dispatchEvent(new Event('storage'));
-  }
+  }, []);
 
-  async function refreshUser() {
+  const refreshUser = useCallback(async () => {
     try {
       const fresh = await fetchMe();
       const normalized: AuthUser = { ...fresh, role: (fresh.role as UserRole) || 'STAFF' };
@@ -101,9 +108,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error('Failed to refresh user:', err);
     }
-  }
+  }, []);
 
-  function logout() {
+  const logout = useCallback(() => {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_user');
     sessionStorage.removeItem('auth_token');
@@ -112,10 +119,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthenticated(false);
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new Event('auth:logout'));
-  }
+  }, []);
+
+  const value = useMemo(
+    () => ({ isAuthenticated, user, loginStep1, loginStep2, updateUser, refreshUser, logout }),
+    [isAuthenticated, user, loginStep1, loginStep2, updateUser, refreshUser, logout],
+  );
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, loginStep1, loginStep2, updateUser, refreshUser, logout }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

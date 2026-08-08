@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo, type ReactNode } from 'react';
 import { fetchPageAccesses, fetchMyAccesses, updatePageAccess, type PageAccessRow } from '../lib/api';
 import { useAuth } from './AuthContext';
 
@@ -52,36 +52,46 @@ export function AccessProvider({ children }: { children: ReactNode }) {
   const { user, isAuthenticated } = useAuth();
   const [accesses, setAccesses] = useState<PageAccessRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const fetchingRef = useRef(false);
+  const lastAuthRef = useRef<string>('');
 
   const refresh = useCallback(async () => {
     if (!isAuthenticated || !user) {
       setAccesses([]);
+      lastAuthRef.current = '';
       return;
     }
+    const authSig = `${user.id}:${user.role}`;
+    // Prevent concurrent fetches
+    if (fetchingRef.current) return;
+    // Skip if we already fetched for the exact same auth
+    if (lastAuthRef.current === authSig) return;
+    fetchingRef.current = true;
     setLoading(true);
     try {
-      // Everyone (including staff/viewer) needs their own effective matrix
-      // so route gates + sidebar work. Admin also needs full matrix for AccessPage UI.
       const minePromise = fetchMyAccesses();
       const matrixPromise = user.role === 'ADMIN' ? fetchPageAccesses() : Promise.resolve(null);
       const [mine, matrix] = await Promise.all([minePromise, matrixPromise]);
-      // Merge: prefer admin's full matrix view; for staff/viewer use mine rows only.
       setAccesses(matrix ?? mine);
+      lastAuthRef.current = authSig;
     } catch (err) {
       console.error('Failed to load page accesses:', err);
     } finally {
       setLoading(false);
+      fetchingRef.current = false;
     }
   }, [isAuthenticated, user?.id, user?.role]);
 
+  // Trigger fetch when auth identity changes — deps are all primitives, no closure reads
   useEffect(() => {
+    if (!isAuthenticated || !user) return;
     refresh();
-  }, [refresh]);
+  }, [isAuthenticated, user?.id, user?.role, refresh]);
 
   const canAccess = useCallback(
     (pageKey: string): boolean => {
       if (!user) return false;
-      if (user.role === 'ADMIN') return true; // Admin bypasses the matrix
+      if (user.role === 'ADMIN') return true;
       const row = accesses.find((a) => a.role === user.role && a.pageKey === pageKey);
       return !!row?.allowed;
     },
@@ -102,8 +112,13 @@ export function AccessProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const value = useMemo(
+    () => ({ accesses, loading, canAccess, refresh, setAccess }),
+    [accesses, loading, canAccess, refresh, setAccess],
+  );
+
   return (
-    <AccessContext.Provider value={{ accesses, loading, canAccess, refresh, setAccess }}>
+    <AccessContext.Provider value={value}>
       {children}
     </AccessContext.Provider>
   );
