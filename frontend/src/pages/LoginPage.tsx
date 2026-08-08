@@ -99,7 +99,8 @@ export default function LoginPage() {
 
 
   useEffect(() => {
-    if (step !== 'password' || !settings.turnstileSiteKey) return;
+    const siteKey = settings.turnstileSiteKey?.trim();
+    if (step !== 'password' || !siteKey) return;
 
     let isMounted = true;
     let checkInterval: any;
@@ -110,10 +111,14 @@ export default function LoginPage() {
       if (el && window.turnstile && !el.hasChildNodes()) {
         try {
           window.turnstile.render('#turnstile-widget', {
-            sitekey: settings.turnstileSiteKey,
+            sitekey: siteKey,
+            theme: 'light',
             callback: (token: string) => { turnstileRef.current = token; },
             'expired-callback': () => { turnstileRef.current = null; },
-            'error-callback': () => { turnstileRef.current = null; },
+            'error-callback': (err: any) => {
+              console.error('Turnstile widget error:', err);
+              turnstileRef.current = null;
+            },
           });
         } catch (e) {
           console.error('Error rendering Turnstile:', e);
@@ -121,7 +126,7 @@ export default function LoginPage() {
       }
     };
 
-    const scriptUrl = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+    const scriptUrl = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
     let script = document.querySelector(`script[src="${scriptUrl}"]`) as HTMLScriptElement;
     if (!script) {
       script = document.createElement('script');
@@ -129,9 +134,11 @@ export default function LoginPage() {
       script.async = true;
       script.defer = true;
       script.onload = () => {
-        setTimeout(renderWidget, 100);
+        setTimeout(renderWidget, 50);
       };
       document.head.appendChild(script);
+    } else if (window.turnstile) {
+      setTimeout(renderWidget, 50);
     }
 
     checkInterval = setInterval(() => {
@@ -142,7 +149,7 @@ export default function LoginPage() {
           clearInterval(checkInterval);
         }
       }
-    }, 200);
+    }, 150);
 
     return () => {
       isMounted = false;
@@ -151,7 +158,8 @@ export default function LoginPage() {
   }, [step, settings.turnstileSiteKey]);
 
   useEffect(() => {
-    if (!showForgotModal || forgotStep !== 'request' || !settings.turnstileSiteKey) return;
+    const siteKey = settings.turnstileSiteKey?.trim();
+    if (!showForgotModal || forgotStep !== 'request' || !siteKey) return;
 
     let isMounted = true;
     let checkInterval: any;
@@ -162,10 +170,14 @@ export default function LoginPage() {
       if (el && window.turnstile && !el.hasChildNodes()) {
         try {
           window.turnstile.render('#turnstile-forgot-widget', {
-            sitekey: settings.turnstileSiteKey,
+            sitekey: siteKey,
+            theme: 'light',
             callback: (token: string) => { turnstileForgotRef.current = token; },
             'expired-callback': () => { turnstileForgotRef.current = null; },
-            'error-callback': () => { turnstileForgotRef.current = null; },
+            'error-callback': (err: any) => {
+              console.error('Turnstile forgot widget error:', err);
+              turnstileForgotRef.current = null;
+            },
           });
         } catch (e) {
           console.error('Error rendering Turnstile for forgot password:', e);
@@ -173,7 +185,7 @@ export default function LoginPage() {
       }
     };
 
-    const scriptUrl = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+    const scriptUrl = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
     let script = document.querySelector(`script[src="${scriptUrl}"]`) as HTMLScriptElement;
     if (!script) {
       script = document.createElement('script');
@@ -181,9 +193,11 @@ export default function LoginPage() {
       script.async = true;
       script.defer = true;
       script.onload = () => {
-        setTimeout(renderForgotWidget, 100);
+        setTimeout(renderForgotWidget, 50);
       };
       document.head.appendChild(script);
+    } else if (window.turnstile) {
+      setTimeout(renderForgotWidget, 50);
     }
 
     checkInterval = setInterval(() => {
@@ -194,7 +208,7 @@ export default function LoginPage() {
           clearInterval(checkInterval);
         }
       }
-    }, 200);
+    }, 150);
 
     return () => {
       isMounted = false;
