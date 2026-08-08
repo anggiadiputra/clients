@@ -90,8 +90,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
 
   const inFlight = useRef<AbortController | null>(null);
-  // Track whether a settings change was user-initiated (vs API hydration)
-  const dirtyRef = useRef(false);
 
   // Hydrate from API (DB) on mount when authenticated
   useEffect(() => {
@@ -201,76 +199,38 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Debounced save to DB — only when user explicitly changed settings
-  useEffect(() => {
-    if (!loaded || !dirtyRef.current) return; // skip hydration & non-user changes
-    const controller = new AbortController();
-    const timer = setTimeout(() => {
-      const token = getToken();
-      if (!token) return;
-      dirtyRef.current = false;
-      setSaving(true);
-      fetch(`${BASE}/settings`, {
+  const updateSettings = useCallback(async (partial: Partial<Settings>) => {
+    const token = getToken();
+    if (!token) return;
+
+    setSaving(true);
+    setError(null);
+
+    // Optimistically update local context state
+    setSettings((prev) => ({ ...prev, ...partial }));
+
+    try {
+      const res = await fetch(`${BASE}/settings`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(settings),
-        signal: controller.signal,
-      })
-        .then(async (res) => {
-          if (!res.ok) {
-            const body = await res.json().catch(() => ({}));
-            throw new Error(body?.error || `HTTP ${res.status}`);
-          }
-          setError(null);
-          setLastSavedAt(Date.now());
-        })
-        .catch((err) => {
-          if (err?.name === 'AbortError') return;
-          setError(err?.message || 'Gagal menyimpan pengaturan ke server');
-        })
-        .finally(() => setSaving(false));
-    }, 500);
+        body: JSON.stringify(partial),
+      });
 
-    return () => { clearTimeout(timer); controller.abort(); };
-  }, [settings, loaded]);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || `HTTP ${res.status}`);
+      }
 
-  // CSS injection for primary color
-  useEffect(() => {
-    const primaryMap: Record<string, string> = {
-      black: '#000000', blue: '#2563eb', emerald: '#059669',
-      purple: '#7c3aed', red: '#dc2626', orange: '#ea580c',
-    };
-    const hoverMap: Record<string, string> = {
-      black: '#1f2937', blue: '#1d4ed8', emerald: '#047857',
-      purple: '#6d28d9', red: '#b91c1c', orange: '#c2410c',
-    };
-    const c = settings.primaryColor || 'black';
-    document.documentElement.style.setProperty('--color-primary', primaryMap[c]);
-    document.documentElement.style.setProperty('--color-primary-hover', hoverMap[c]);
-    document.documentElement.style.setProperty('--page-background', settings.pageBackground || '#f0f2f5');
-
-    const styleId = 'primary-color-override';
-    let style = document.getElementById(styleId);
-    if (!style) {
-      style = document.createElement('style');
-      style.id = styleId;
-      document.head.appendChild(style);
+      setError(null);
+      setLastSavedAt(Date.now());
+    } catch (err: any) {
+      setError(err?.message || 'Gagal menyimpan pengaturan ke server');
+    } finally {
+      setSaving(false);
     }
-    style.textContent = `
-      .bg-black:not([class*="bg-black/"]) { background-color: var(--color-primary) !important; }
-      .hover\\:bg-gray-800:hover { background-color: var(--color-primary-hover) !important; }
-      .focus\\:ring-black:focus { --tw-ring-color: var(--color-primary) !important; }
-      .text-black { color: var(--color-primary) !important; }
-    `;
-  }, [settings.primaryColor, settings.pageBackground]);
-
-
-  const updateSettings = useCallback((partial: Partial<Settings>) => {
-    dirtyRef.current = true;
-    setSettings((prev) => ({ ...prev, ...partial }));
   }, []);
 
   const resetSettings = useCallback(() => {

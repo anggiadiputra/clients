@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ArrowLeft,
   Upload,
@@ -172,6 +172,50 @@ export default function SettingsPage() {
   const [editingFonnte, setEditingFonnte] = useState(false);
   const [editingKirisan, setEditingKirisan] = useState(false);
   const [editingS3, setEditingS3] = useState(false);
+
+  // Sync local form states when context settings hydrate or update from server
+  useEffect(() => {
+    if (!editingTampilan) {
+      setProjectName(settings.projectName);
+      setLogoInput(settings.logo);
+      setPrimaryColor(settings.primaryColor);
+      setPageBackground(settings.pageBackground);
+    }
+    if (!editingPengirim) {
+      setSenderName(settings.senderName);
+      setSenderAddress(settings.senderAddress);
+      setSenderPhone(settings.senderPhone);
+      setSenderEmail(settings.senderEmail);
+    }
+    if (!editingRekening) {
+      try { setBankAccounts(JSON.parse(settings.bankAccounts || '[]')); } catch { setBankAccounts([]); }
+    }
+    if (!editingSk) {
+      setTermsAndConditions(settings.termsAndConditions);
+    }
+    if (!editingTurnstile) {
+      setTurnstileSiteKey(settings.turnstileSiteKey);
+      setTurnstileSecretKey(settings.turnstileSecretKey);
+    }
+    if (!editingFonnte) {
+      setFonnteToken(settings.fonnteToken);
+    }
+    if (!editingKirisan) {
+      setKirisanToken(settings.kirisanToken);
+      setKirisanChannelKey(settings.kirisanChannelKey);
+      setKirisanLoginOtpTemplateId(settings.kirisanLoginOtpTemplateId);
+      setKirisanRegisterOtpTemplateId(settings.kirisanRegisterOtpTemplateId);
+      setKirisanResetPasswordTemplateId(settings.kirisanResetPasswordTemplateId);
+    }
+    if (!editingS3) {
+      setS3Endpoint(settings.s3Endpoint);
+      setS3Region(settings.s3Region);
+      setS3Bucket(settings.s3Bucket);
+      setS3AccessKeyId(settings.s3AccessKeyId);
+      setS3SecretAccessKey(settings.s3SecretAccessKey);
+      setS3PublicUrlBase(settings.s3PublicUrlBase);
+    }
+  }, [settings, loaded, editingTampilan, editingPengirim, editingRekening, editingSk, editingTurnstile, editingFonnte, editingKirisan, editingS3]);
 
   function cancelTampilan() {
     setProjectName(settings.projectName);
