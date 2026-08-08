@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, User, Mail, Lock, Building, ArrowRight, Loader2, CheckCircle2 } from 'lucide-react';
+import { BASE } from '../lib/api';
 
 export default function SetupPage() {
   const navigate = useNavigate();
@@ -30,7 +31,7 @@ export default function SetupPage() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/setup', {
+      const res = await fetch(`${BASE}/setup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password, projectName }),

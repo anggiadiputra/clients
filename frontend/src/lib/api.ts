@@ -1,6 +1,6 @@
 import type { Client, Note, Activity, Invoice, ServiceItem, Project, ProjectDetail, ProjectStatus, ProjectPriority, ProjectComment, ProjectAttachment } from './types';
 
-const BASE = import.meta.env.VITE_API_URL
+export const BASE = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api`
   : '/api';
 

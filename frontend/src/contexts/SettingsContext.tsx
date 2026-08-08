@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from 'react';
+import { BASE } from '../lib/api';
 
 interface Settings {
   projectName: string;
@@ -99,7 +100,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const token = getToken();
     if (!token) {
       // Not logged in — fetch public branding settings (no auth needed)
-      fetch('/api/settings/public')
+      fetch(`${BASE}/settings/public`)
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (data && typeof data === 'object') {
@@ -111,14 +112,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-fetch('/api/settings', {
+    fetch(`${BASE}/settings`, {
       headers: { Authorization: `Bearer ${token}` },
       signal: controller.signal,
     })
     .then((res) => {
       // Admin-only endpoint — non-admin users get 403, fall back to public branding.
       if (res.status === 403) {
-        return fetch('/api/settings/branding', { headers: { Authorization: `Bearer ${token}` } })
+        return fetch(`${BASE}/settings/branding`, { headers: { Authorization: `Bearer ${token}` } })
           .then((r) => (r.ok ? r.json() : null))
           .catch(() => null);
       }
@@ -146,10 +147,10 @@ fetch('/api/settings', {
       const token = getToken();
       if (!token) return;
       // Try full /api/settings first (admin only); fall back to /api/settings/branding for staff.
-      fetch('/api/settings', { headers: { Authorization: `Bearer ${token}` } })
+      fetch(`${BASE}/settings`, { headers: { Authorization: `Bearer ${token}` } })
         .then((res) => {
           if (res.status === 403) {
-            return fetch('/api/settings/branding', { headers: { Authorization: `Bearer ${token}` } })
+            return fetch(`${BASE}/settings/branding`, { headers: { Authorization: `Bearer ${token}` } })
               .then((r) => (r.ok ? r.json() : null))
               .catch(() => null);
           }
@@ -185,7 +186,7 @@ fetch('/api/settings', {
       const token = getToken();
       if (!token) return;
       setSaving(true);
-      fetch('/api/settings', {
+      fetch(`${BASE}/settings`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

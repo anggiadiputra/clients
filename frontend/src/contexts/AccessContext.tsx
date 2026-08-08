@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
-import { fetchPageAccesses, fetchMyAccesses, type PageAccessRow } from '../lib/api';
+import { fetchPageAccesses, fetchMyAccesses, updatePageAccess, type PageAccessRow } from '../lib/api';
 import { useAuth } from './AuthContext';
 
 export const PAGE_KEYS = [
@@ -90,7 +90,7 @@ export function AccessProvider({ children }: { children: ReactNode }) {
 
   const setAccess = useCallback(
     async (role: 'ADMIN' | 'STAFF' | 'VIEWER', pageKey: string, allowed: boolean) => {
-      const updated = await updatePageAccessLocal(role, pageKey, allowed);
+      const updated = await updatePageAccess(role, pageKey, allowed);
       setAccesses((prev) => {
         const idx = prev.findIndex((a) => a.role === role && a.pageKey === pageKey);
         if (idx === -1) return [...prev, updated];
@@ -107,26 +107,6 @@ export function AccessProvider({ children }: { children: ReactNode }) {
       {children}
     </AccessContext.Provider>
   );
-}
-
-async function updatePageAccessLocal(
-  role: 'ADMIN' | 'STAFF' | 'VIEWER',
-  pageKey: string,
-  allowed: boolean,
-): Promise<PageAccessRow> {
-  const res = await fetch(`/api/access/${role}/${pageKey}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || ''}`,
-    },
-    body: JSON.stringify({ allowed }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Gagal menyimpan' }));
-    throw new Error(err.error || 'Gagal menyimpan');
-  }
-  return res.json();
 }
 
 export function useAccess() {

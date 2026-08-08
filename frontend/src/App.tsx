@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import { BASE } from './lib/api';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SettingsProvider, useSettings } from './contexts/SettingsContext';
 import { AccessProvider } from './contexts/AccessContext';
@@ -34,7 +35,7 @@ function SetupGuard({ children }: { children: ReactNode }) {
   const [needsSetup, setNeedsSetup] = useState(false);
 
   useEffect(() => {
-    fetch('/api/setup/status')
+    fetch(`${BASE}/setup/status`)
       .then((res) => (res.ok ? res.json() : { needsSetup: false }))
       .then((data) => {
         setNeedsSetup(data.needsSetup);

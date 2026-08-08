@@ -138,22 +138,31 @@ Hasil kompilasi file statis akan berada di `/home/diurusin-crm/htdocs/crm.diurus
 
 ## 🔄 Langkah 4: Perintah UPDATE Kode Masa Mendatang (`git pull`)
 
-### 1. Update BACKEND (`apis.diurusin.id`)
+### ⚠️ Jika Muncul Error `fatal: detected dubious ownership` atau `not a git repository`
+Jalankan perintah **Fix 1-Liner** di bawah ini (akan otomatis menambahkan `safe.directory` dan menginisialisasi repository Git):
+
+#### 🛠️ Fix & Build — FRONTEND (`crm.diurusin.id`):
 ```bash
-cd /home/diurusin-apis/htdocs/apis.diurusin.id
-git pull
-npm install
-npx prisma db push
-npm run build
-pm2 restart ecosystem.config.cjs
+git config --global --add safe.directory '*' && cd /home/diurusin-crm/htdocs/crm.diurusin.id && git init 2>/dev/null || true && git remote remove origin 2>/dev/null || true && git remote add origin https://github.com/anggiadiputra/clients.git && git fetch origin && git reset --hard origin/main && cd frontend && npm install && npm run build
 ```
 
-### 2. Update FRONTEND (`crm.diurusin.id`)
+#### 🛠️ Fix & Build — BACKEND (`apis.diurusin.id`):
 ```bash
-cd /home/diurusin-crm/htdocs/crm.diurusin.id
-git pull
-npm install
-npm run build
+git config --global --add safe.directory '*' && cd /home/diurusin-apis/htdocs/apis.diurusin.id && git init 2>/dev/null || true && git remote remove origin 2>/dev/null || true && git remote add origin https://github.com/anggiadiputra/clients.git && git fetch origin && git reset --hard origin/main && cd backend && cp ../.env .env 2>/dev/null || true && npm install && npx prisma db push && npm run build && pm2 restart ecosystem.config.cjs
+```
+
+---
+
+### ⚡ 1-Liner Update Rutin Masa Mendatang
+
+#### Update FRONTEND Dashboard (`crm.diurusin.id`):
+```bash
+cd /home/diurusin-crm/htdocs/crm.diurusin.id && git fetch origin && git reset --hard origin/main && cd frontend && npm install && npm run build
+```
+
+#### Update BACKEND API (`apis.diurusin.id`):
+```bash
+cd /home/diurusin-apis/htdocs/apis.diurusin.id && git fetch origin && git reset --hard origin/main && cd backend && cp ../.env .env 2>/dev/null || true && npm install && npx prisma db push && npm run build && pm2 restart ecosystem.config.cjs
 ```
 
 ---

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Download, ArrowLeft, Settings2, CheckCircle2, XCircle, Trash2 } from 'lucide-react';
-import { downloadInvoicePdf, updateInvoiceStatus, deleteInvoice as apiDeleteInvoice, fetchServices } from '../lib/api';
+import { downloadInvoicePdf, updateInvoiceStatus, deleteInvoice as apiDeleteInvoice, fetchServices, BASE } from '../lib/api';
 import { INVOICE_STATUS_LABELS, INVOICE_STATUS_COLORS } from '../lib/types';
 import { useSettings } from '../contexts/SettingsContext';
 import type { Invoice, ServiceItem } from '../lib/types';
@@ -22,7 +22,7 @@ export default function InvoiceDetailPage() {
     if (!invoiceNumber) return;
     try {
       const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-      const res = await fetch(`/api/invoices/number/${invoiceNumber}`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${BASE}/invoices/number/${invoiceNumber}`, { headers: { Authorization: `Bearer ${token}` } });
 
       if (!res.ok) throw new Error('Not found');
       const data = await res.json();
