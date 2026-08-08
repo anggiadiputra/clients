@@ -6,10 +6,10 @@ Panduan langkah demi langkah untuk melakukan **Deploy Awal** dan **Update Kode (
 
 ## 📌 Detail Environment & Path Domain
 
-| Layer | Domain | Path Lengkap ke Folder Aplikasi |
-| :--- | :--- | :--- |
-| **Backend API** | `apis.diurusin.id` | `/home/diurusin-apis/htdocs/apis.diurusin.id/clients/backend` |
-| **Frontend UI** | `crm.diurusin.id` | `/home/diurusin-crm/htdocs/crm.diurusin.id/clients/frontend` |
+| Layer | Domain | Path Root Domain | Target Root Build / Dist |
+| :--- | :--- | :--- | :--- |
+| **Backend API** | `apis.diurusin.id` | `/home/diurusin-apis/htdocs/apis.diurusin.id` | N/A (Port 3003) |
+| **Frontend UI** | `crm.diurusin.id` | `/home/diurusin-crm/htdocs/crm.diurusin.id` | `/home/diurusin-crm/htdocs/crm.diurusin.id/dist` |
 
 > **Repository Git**: `https://github.com/anggiadiputra/clients.git`
 
@@ -29,20 +29,17 @@ Panduan langkah demi langkah untuk melakukan **Deploy Awal** dan **Update Kode (
 
 ## ⚙️ Langkah 2: Deployment BACKEND (`apis.diurusin.id`)
 
-### 1. SSH & Clone Repositori
-Login ke VPS via SSH, lalu masuk ke folder domain backend:
+### 1. Pindahkan File Backend ke Root Domain (Jika di-clone dalam subfolder)
 ```bash
 cd /home/diurusin-apis/htdocs/apis.diurusin.id
-
-# Clone repository (akan menghasilkan folder /clients/backend)
-git clone https://github.com/anggiadiputra/clients.git
+shopt -s dotglob
+mv clients/backend/* .
+rm -rf clients
 ```
-> **Lokasi folder backend Anda saat ini**: `/home/diurusin-apis/htdocs/apis.diurusin.id/clients/backend`
 
 ### 2. Setup Environment Variable Backend (`.env`)
-Masuk ke folder `backend`:
 ```bash
-cd /home/diurusin-apis/htdocs/apis.diurusin.id/clients/backend
+cd /home/diurusin-apis/htdocs/apis.diurusin.id
 nano .env
 ```
 Isi konfigurasi berikut:
@@ -58,8 +55,8 @@ JWT_SECRET="ganti_dengan_jwt_secret_super_aman_diurusin_123"
 ```
 
 ### 3. Install, Migrate DB & Build
-Masih di dalam folder `/home/diurusin-apis/htdocs/apis.diurusin.id/clients/backend`:
 ```bash
+cd /home/diurusin-apis/htdocs/apis.diurusin.id
 npm install
 npx prisma db push
 npm run prisma:gen
@@ -69,7 +66,7 @@ npm run build
 
 ### 4. Jalankan Service Backend dengan PM2
 ```bash
-pm2 start ecosystem.config.cjs
+pm2 restart ecosystem.config.cjs || pm2 start ecosystem.config.cjs
 pm2 save
 ```
 
@@ -96,20 +93,17 @@ pm2 save
 
 ## 🎨 Langkah 3: Deployment FRONTEND (`crm.diurusin.id`)
 
-### 1. SSH & Clone Repositori
-Login ke VPS via SSH, lalu masuk ke folder domain frontend:
+### 1. Pindahkan File Frontend ke Root Domain
 ```bash
 cd /home/diurusin-crm/htdocs/crm.diurusin.id
-
-# Clone repository (akan menghasilkan folder /clients/frontend)
-git clone https://github.com/anggiadiputra/clients.git
+shopt -s dotglob
+mv clients/frontend/* .
+rm -rf clients
 ```
-> **Lokasi folder frontend Anda saat ini**: `/home/diurusin-crm/htdocs/crm.diurusin.id/clients/frontend`
 
 ### 2. Setup Environment Variable Frontend (`.env`)
-Masuk ke folder `frontend`:
 ```bash
-cd /home/diurusin-crm/htdocs/crm.diurusin.id/clients/frontend
+cd /home/diurusin-crm/htdocs/crm.diurusin.id
 nano .env
 ```
 Isi dengan URL Backend API:
@@ -118,19 +112,19 @@ VITE_API_URL=https://apis.diurusin.id
 ```
 
 ### 3. Install Dependencies & Build Frontend
-Masih di dalam folder `/home/diurusin-crm/htdocs/crm.diurusin.id/clients/frontend`:
 ```bash
+cd /home/diurusin-crm/htdocs/crm.diurusin.id
 npm install
 npm run build
 ```
-Hasil kompilasi akan berada di `/home/diurusin-crm/htdocs/crm.diurusin.id/clients/frontend/dist`.
+Hasil kompilasi file statis akan berada di `/home/diurusin-crm/htdocs/crm.diurusin.id/dist`.
 
 ### 4. Konfigurasi Root Folder & SPA Routing di CloudPanel Vhost
 1. Di **CloudPanel Dashboard**, pilih Site **`crm.diurusin.id`**.
 2. Masuk ke menu **Vhost**.
-3. Ubah directive `root` agar mengarah ke folder build `clients/frontend/dist`:
+3. Ubah directive `root` agar mengarah ke folder build `dist`:
    ```nginx
-   root /home/diurusin-crm/htdocs/crm.diurusin.id/clients/frontend/dist;
+   root /home/diurusin-crm/htdocs/crm.diurusin.id/dist;
    ```
 4. Tambahkan aturan routing SPA (Single Page Application) di dalam `location /`:
    ```nginx
@@ -144,16 +138,22 @@ Hasil kompilasi akan berada di `/home/diurusin-crm/htdocs/crm.diurusin.id/client
 
 ## 🔄 Langkah 4: Perintah UPDATE Kode Masa Mendatang (`git pull`)
 
-Jika di kemudian hari ada perubahan kode di GitHub `main`, jalankan perintah 1-baris berikut di terminal SSH VPS Anda:
-
 ### 1. Update BACKEND (`apis.diurusin.id`)
 ```bash
-cd /home/diurusin-apis/htdocs/apis.diurusin.id/clients/backend && bash deploy.sh
+cd /home/diurusin-apis/htdocs/apis.diurusin.id
+git pull
+npm install
+npx prisma db push
+npm run build
+pm2 restart ecosystem.config.cjs
 ```
 
 ### 2. Update FRONTEND (`crm.diurusin.id`)
 ```bash
-cd /home/diurusin-crm/htdocs/crm.diurusin.id/clients/frontend && bash deploy.sh
+cd /home/diurusin-crm/htdocs/crm.diurusin.id
+git pull
+npm install
+npm run build
 ```
 
 ---
@@ -169,3 +169,9 @@ cd /home/diurusin-crm/htdocs/crm.diurusin.id/clients/frontend && bash deploy.sh
   ```bash
   curl -I https://apis.diurusin.id/health
   ```
+
+---
+
+## 🔑 Kredensial Default Seed Admin
+- **Email**: `admin@example.com` (atau sesuai ADMIN_EMAIL di .env)
+- **Password**: `admin123456`
