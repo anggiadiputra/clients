@@ -15,7 +15,6 @@ export default function AccessPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [savingCell, setSavingCell] = useState<string | null>(null);
 
-  useEffect(() => { refresh(); }, [refresh]);
   useEffect(() => {
     if (success || error) {
       const t = setTimeout(() => { setSuccess(null); setError(null); }, 3000);

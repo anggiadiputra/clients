@@ -72,7 +72,7 @@ export function AccessProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user?.id, user?.role]);
 
   useEffect(() => {
     refresh();

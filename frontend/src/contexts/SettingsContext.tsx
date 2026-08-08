@@ -187,7 +187,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       if (!token) return;
       setSaving(true);
       fetch(`${BASE}/settings`, {
-        method: 'PUT',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,

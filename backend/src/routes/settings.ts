@@ -65,8 +65,8 @@ router.get('/', async (_req: Request, res: Response) => {
   }
 });
 
-// PUT /api/settings
-router.put('/', async (req: Request, res: Response) => {
+// Handler for saving settings (supports both PUT and POST for web servers blocking PUT)
+async function handleSaveSettings(req: Request, res: Response) {
   try {
     const data = req.body;
     const validKeys = Object.keys(data).filter(k => SETTING_KEYS.includes(k));
@@ -90,7 +90,11 @@ router.put('/', async (req: Request, res: Response) => {
     console.error(error);
     res.status(500).json({ error: 'Failed to save settings' });
   }
-});
+}
+
+// PUT & POST /api/settings
+router.put('/', handleSaveSettings);
+router.post('/', handleSaveSettings);
 
 // POST /api/settings/test-kirisan
 router.post('/test-kirisan', async (req: Request, res: Response) => {
