@@ -88,11 +88,11 @@ export async function apiUpdateProfile(data: { name?: string; email: string }): 
 }
 
 
-export async function apiForgotPassword(email: string): Promise<{ message: string }> {
+export async function apiForgotPassword(email: string, turnstileToken?: string): Promise<{ message: string }> {
   const res = await fetch(`${BASE}/auth/forgot-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, ...(turnstileToken ? { turnstileToken } : {}) }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Gagal kirim OTP' }));

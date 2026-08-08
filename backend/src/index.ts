@@ -36,7 +36,7 @@ app.use('/api/setup', setupRouter);
 // Public branding settings — no auth required (login page & shared shell)
 app.get('/api/settings/public', async (_req, res) => {
   try {
-    res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+    res.setHeader('Cache-Control', 'no-cache');
     const rows = await prisma.setting.findMany({
       where: { key: { in: ['projectName', 'logo', 'primaryColor', 'pageBackground', 'turnstileSiteKey'] } },
     });

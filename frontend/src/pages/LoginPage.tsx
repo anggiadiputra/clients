@@ -24,6 +24,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const turnstileRef = useRef<string | null>(null);
+  const turnstileForgotRef = useRef<string | null>(null);
 
   // Lupa Password state
   const [showForgotModal, setShowForgotModal] = useState(false);
@@ -43,11 +44,15 @@ export default function LoginPage() {
     setForgotMsg(null);
     setForgotLoading(true);
     try {
-      const res = await apiForgotPassword(forgotEmail);
+      const res = await apiForgotPassword(forgotEmail, turnstileForgotRef.current || undefined);
+      turnstileForgotRef.current = null;
+      try { window.turnstile?.reset?.('#turnstile-forgot-widget'); } catch {}
       setForgotMsg(res.message);
       setForgotStep('reset');
     } catch (err: any) {
       setForgotErr(err.message || 'Gagal mengirim OTP reset password');
+      turnstileForgotRef.current = null;
+      try { window.turnstile?.reset?.('#turnstile-forgot-widget'); } catch {}
     } finally {
       setForgotLoading(false);
     }
@@ -144,6 +149,58 @@ export default function LoginPage() {
       if (checkInterval) clearInterval(checkInterval);
     };
   }, [step, settings.turnstileSiteKey]);
+
+  useEffect(() => {
+    if (!showForgotModal || forgotStep !== 'request' || !settings.turnstileSiteKey) return;
+
+    let isMounted = true;
+    let checkInterval: any;
+
+    const renderForgotWidget = () => {
+      if (!isMounted) return;
+      const el = document.getElementById('turnstile-forgot-widget');
+      if (el && window.turnstile && !el.hasChildNodes()) {
+        try {
+          window.turnstile.render('#turnstile-forgot-widget', {
+            sitekey: settings.turnstileSiteKey,
+            callback: (token: string) => { turnstileForgotRef.current = token; },
+            'expired-callback': () => { turnstileForgotRef.current = null; },
+            'error-callback': () => { turnstileForgotRef.current = null; },
+          });
+        } catch (e) {
+          console.error('Error rendering Turnstile for forgot password:', e);
+        }
+      }
+    };
+
+    const scriptUrl = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+    let script = document.querySelector(`script[src="${scriptUrl}"]`) as HTMLScriptElement;
+    if (!script) {
+      script = document.createElement('script');
+      script.src = scriptUrl;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => {
+        setTimeout(renderForgotWidget, 100);
+      };
+      document.head.appendChild(script);
+    }
+
+    checkInterval = setInterval(() => {
+      if (window.turnstile) {
+        renderForgotWidget();
+        const el = document.getElementById('turnstile-forgot-widget');
+        if (el && el.hasChildNodes()) {
+          clearInterval(checkInterval);
+        }
+      }
+    }, 200);
+
+    return () => {
+      isMounted = false;
+      if (checkInterval) clearInterval(checkInterval);
+    };
+  }, [showForgotModal, forgotStep, settings.turnstileSiteKey]);
 
   async function handlePasswordSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -376,9 +433,12 @@ export default function LoginPage() {
                     required
                   />
                 </div>
+                {settings.turnstileSiteKey && (
+                  <div id="turnstile-forgot-widget" className="flex justify-center my-2"></div>
+                )}
                 <button
                   type="submit"
-                  disabled={forgotLoading || !forgotEmail}
+                  disabled={forgotLoading || !forgotEmail || (!!settings.turnstileSiteKey && !turnstileForgotRef.current)}
                   className="w-full px-4 py-2.5 bg-black text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
                 >
                   {forgotLoading ? 'Mengirim OTP...' : 'Kirim Kode OTP'}

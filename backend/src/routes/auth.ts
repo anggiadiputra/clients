@@ -309,9 +309,15 @@ router.put('/change-password', async (req: Request, res: Response) => {
 // POST /api/auth/forgot-password (minta OTP reset)
 router.post('/forgot-password', otpLimiter, async (req: Request, res: Response) => {
   try {
-    const { email } = req.body;
+    const { email, turnstileToken } = req.body;
     if (!email) {
       res.status(400).json({ error: 'Email wajib diisi' });
+      return;
+    }
+
+    const tsOk = await verifyTurnstile(turnstileToken);
+    if (!tsOk) {
+      res.status(400).json({ error: 'Verifikasi CAPTCHA gagal atau belum diisi' });
       return;
     }
 
