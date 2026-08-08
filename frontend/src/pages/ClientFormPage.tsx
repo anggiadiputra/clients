@@ -18,7 +18,7 @@ export default function ClientFormPage() {
     whatsapp: '',
     website: '',
     address: '',
-    status: 'CALON_CLIENT' as string,
+    status: 'KERJAKAN' as string,
   });
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(isEdit);

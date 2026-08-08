@@ -2,20 +2,23 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import { createClient } from '../lib/api';
 
+import type { Status } from '../lib/types';
+
 interface Props {
   open: boolean;
   onClose: () => void;
   onCreated: () => void;
+  defaultStatus?: Status;
 }
 
-export default function AddClientModal({ open, onClose, onCreated }: Props) {
+export default function AddClientModal({ open, onClose, onCreated, defaultStatus = 'KERJAKAN' }: Props) {
   const [form, setForm] = useState({
     name: '',
     email: '',
     whatsapp: '',
     website: '',
     address: '',
-    status: 'CALON_CLIENT',
+    status: defaultStatus,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -35,7 +38,7 @@ export default function AddClientModal({ open, onClose, onCreated }: Props) {
     try {
       await createClient(form as any);
       onCreated();
-      setForm({ name: '', email: '', whatsapp: '', website: '', address: '', status: 'CALON_CLIENT' });
+      setForm({ name: '', email: '', whatsapp: '', website: '', address: '', status: defaultStatus });
       onClose();
     } catch (err: any) {
       setError(err.message || 'Gagal menyimpan');
@@ -105,6 +108,26 @@ export default function AddClientModal({ open, onClose, onCreated }: Props) {
               className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800"
               placeholder="klinikgigi.com"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Status Client</label>
+            <select
+              value={form.status}
+              onChange={(e) => update('status', e.target.value)}
+              className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800 bg-white"
+            >
+              <optgroup label="💼 Pelanggan (Kerja Sama)">
+                <option value="KERJAKAN">Sedang Dikerjakan</option>
+                <option value="SELESAI">Selesai Kerja Sama</option>
+                <option value="MASA_GARANSI">Masa Garansi</option>
+                <option value="DEAL">Deal</option>
+              </optgroup>
+              <optgroup label="🎯 Calon Pelanggan">
+                <option value="CALON_CLIENT">Calon Client (Prospek Baru)</option>
+                <option value="FOLLOW_UP">Follow Up</option>
+              </optgroup>
+            </select>
           </div>
 
           <div>

@@ -8,8 +8,8 @@ import AddClientModal from '../components/AddClientModal';
 
 const PAGE_SIZE = 10;
 
-// Halaman ini khusus klien yang sudah deal. Calon + Follow Up ada di /kanban.
-const DEAL_STATUSES: Status[] = ['KERJAKAN', 'MASA_GARANSI', 'SELESAI'];
+// Halaman ini khusus klien yang sudah deal / pernah kerja sama. Calon + Follow Up ada di /kanban.
+const DEAL_STATUSES: Status[] = ['DEAL', 'KERJAKAN', 'MASA_GARANSI', 'SELESAI'];
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -250,7 +250,7 @@ export default function ClientsPage() {
         </div>
       )}
 
-      <AddClientModal open={showModal} onClose={() => setShowModal(false)} onCreated={load} />
+      <AddClientModal open={showModal} onClose={() => setShowModal(false)} onCreated={load} defaultStatus="KERJAKAN" />
     </div>
   );
 }

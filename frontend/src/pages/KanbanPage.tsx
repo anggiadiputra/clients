@@ -206,7 +206,7 @@ export default function KanbanPage() {
         </DragDropContext>
       )}
 
-      <AddClientModal open={showModal} onClose={() => setShowModal(false)} onCreated={load} />
+      <AddClientModal open={showModal} onClose={() => setShowModal(false)} onCreated={load} defaultStatus="CALON_CLIENT" />
     </div>
   );
 }
