@@ -38,13 +38,14 @@ app.get('/api/settings/public', async (_req, res) => {
   try {
     res.setHeader('Cache-Control', 'no-cache');
     const rows = await prisma.setting.findMany({
-      where: { key: { in: ['projectName', 'logo', 'primaryColor', 'pageBackground', 'turnstileSiteKey'] } },
+      where: { key: { in: ['projectName', 'logo', 'primaryColor', 'pageBackground', 'turnstileSiteKey', 'turnstileEnabled'] } },
     });
     const defs: Record<string, string> = {
       projectName: 'Client CRM',
       logo: '',
       primaryColor: 'black',
       pageBackground: '#f0f2f5',
+      turnstileEnabled: 'true',
       turnstileSiteKey: '',
     };
     rows.forEach((r: any) => { defs[r.key] = r.value; });

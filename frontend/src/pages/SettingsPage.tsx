@@ -138,6 +138,7 @@ export default function SettingsPage() {
   const [turnstileSiteKey, setTurnstileSiteKey] = useState(settings.turnstileSiteKey);
   const [turnstileSecretKey, setTurnstileSecretKey] = useState(settings.turnstileSecretKey);
   const [showTurnstileSecret, setShowTurnstileSecret] = useState(false);
+  const [turnstilePreviewToken, setTurnstilePreviewToken] = useState<string | null>(null);
 
   const [fonnteToken, setFonnteToken] = useState(settings.fonnteToken);
   const [showFonnteToken, setShowFonnteToken] = useState(false);
@@ -216,6 +217,67 @@ export default function SettingsPage() {
       setS3PublicUrlBase(settings.s3PublicUrlBase);
     }
   }, [settings, loaded, editingTampilan, editingPengirim, editingRekening, editingSk, editingTurnstile, editingFonnte, editingKirisan, editingS3]);
+
+  // Turnstile preview widget rendering effect
+  useEffect(() => {
+    const siteKey = settings.turnstileSiteKey?.trim();
+    if (!siteKey) return;
+
+    let isMounted = true;
+    let checkInterval: any;
+    const containerId = 'turnstile-settings-preview';
+
+    const renderPreview = () => {
+      if (!isMounted) return;
+      const el = document.getElementById(containerId);
+      if (el && window.turnstile && !el.hasChildNodes()) {
+        try {
+          window.turnstile.render(`#${containerId}`, {
+            sitekey: siteKey,
+            theme: 'light',
+            callback: (token: string) => { setTurnstilePreviewToken(token); },
+            'expired-callback': () => { setTurnstilePreviewToken(null); },
+            'error-callback': (err: any) => {
+              console.error('Turnstile preview error:', err);
+              setTurnstilePreviewToken(null);
+            },
+          });
+        } catch (e) {
+          console.error('Error rendering Turnstile preview:', e);
+        }
+      }
+    };
+
+    const scriptUrl = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    let script = document.querySelector(`script[src="${scriptUrl}"]`) as HTMLScriptElement;
+    if (!script) {
+      script = document.createElement('script');
+      script.src = scriptUrl;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => {
+        setTimeout(renderPreview, 50);
+      };
+      document.head.appendChild(script);
+    } else if (window.turnstile) {
+      setTimeout(renderPreview, 50);
+    }
+
+    checkInterval = setInterval(() => {
+      if (window.turnstile) {
+        renderPreview();
+        const el = document.getElementById(containerId);
+        if (el && el.hasChildNodes()) {
+          clearInterval(checkInterval);
+        }
+      }
+    }, 150);
+
+    return () => {
+      isMounted = false;
+      if (checkInterval) clearInterval(checkInterval);
+    };
+  }, [settings.turnstileSiteKey]);
 
   function cancelTampilan() {
     setProjectName(settings.projectName);
@@ -804,8 +866,27 @@ export default function SettingsPage() {
             iconBg="bg-orange-50"
             iconColor="text-orange-600"
             title="Cloudflare Turnstile"
-            subtitle="Captcha di halaman login & register"
+            subtitle="Captcha perlindungan bot di halaman login & reset password"
           />
+
+          {/* Toggle Switch ON/OFF */}
+          <div className="flex items-center justify-between p-3.5 bg-gray-50 rounded-xl border border-gray-200/80 mb-5">
+            <div>
+              <p className="text-xs uppercase font-bold text-gray-700 tracking-wider">Status Perlindungan CAPTCHA</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {settings.turnstileEnabled !== 'false' ? '🟢 Aktif (Captcha akan diproses saat login & reset password)' : '🔴 Nonaktif (Captcha dimatikan sementara)'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => updateSettings({ turnstileEnabled: settings.turnstileEnabled === 'false' ? 'true' : 'false' })}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${settings.turnstileEnabled !== 'false' ? 'bg-emerald-600' : 'bg-gray-300'}`}
+              title="Klik untuk menyalakan/mematikan Turnstile CAPTCHA"
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.turnstileEnabled !== 'false' ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+
           {!editingTurnstile ? (
             <div className="space-y-4">
               <div>
@@ -816,11 +897,38 @@ export default function SettingsPage() {
                 <p className="text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Secret Key</p>
                 <MaskedValue value={settings.turnstileSecretKey} revealed={showTurnstileSecret} onToggle={() => setShowTurnstileSecret((v) => !v)} />
               </div>
+
+              {/* Live Preview Box */}
+              <div className="p-4 bg-orange-50/60 border border-orange-100 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-orange-900 uppercase tracking-wider">🔍 Live Preview Widget Turnstile</p>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-orange-100 text-orange-800">Uji Coba Langsung</span>
+                </div>
+                {settings.turnstileSiteKey ? (
+                  <>
+                    <div id="turnstile-settings-preview" className="flex justify-center py-2 min-h-[65px]"></div>
+                    {turnstilePreviewToken ? (
+                      <p className="text-xs font-semibold text-emerald-600 text-center">
+                        ✅ Live Preview Berhasil! Token Turnstile Terverifikasi.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-500 text-center">
+                        Selesaikan centang Turnstile di atas untuk menguji respon widget.
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-xs text-gray-500 italic text-center py-2">
+                    Isi Site Key & Secret Key terlebih dahulu untuk melihat preview widget.
+                  </p>
+                )}
+              </div>
+
               <button
                 onClick={() => setEditingTurnstile(true)}
                 className="w-full px-4 py-2.5 bg-black text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
               >
-                <Settings2 className="w-4 h-4" /> Ubah Turnstile
+                <Settings2 className="w-4 h-4" /> Ubah Key Turnstile
               </button>
             </div>
           ) : (

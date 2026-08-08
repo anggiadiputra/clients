@@ -7,7 +7,7 @@ const router = Router();
 
 const SETTING_KEYS = [
   'projectName', 'logo', 'primaryColor', 'pageBackground',
-  'turnstileSiteKey', 'turnstileSecretKey', 'fonnteToken',
+  'turnstileEnabled', 'turnstileSiteKey', 'turnstileSecretKey', 'fonnteToken',
   'kirisanToken', 'kirisanChannelKey', 'kirisanLoginOtpTemplateId', 'kirisanRegisterOtpTemplateId', 'kirisanResetPasswordTemplateId',
   'senderName', 'senderAddress', 'senderPhone', 'senderEmail', 'bankAccounts', 'termsAndConditions',
   's3Endpoint', 's3Region', 's3Bucket', 's3AccessKeyId', 's3SecretAccessKey', 's3PublicUrlBase',
@@ -18,6 +18,7 @@ const DEFAULTS: Record<string, string> = {
   logo: '',
   primaryColor: 'black',
   pageBackground: '#f0f2f5',
+  turnstileEnabled: 'true',
   turnstileSiteKey: '',
   turnstileSecretKey: '',
   fonnteToken: '',

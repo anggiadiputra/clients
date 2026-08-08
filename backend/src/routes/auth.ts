@@ -32,15 +32,16 @@ const otpLimiter = rateLimit({
 // Returns true on success (or if no site key or secret key is configured).
 async function verifyTurnstile(token: string | undefined): Promise<boolean> {
   const rows = await prisma.setting.findMany({
-    where: { key: { in: ['turnstileSiteKey', 'turnstileSecretKey'] } },
+    where: { key: { in: ['turnstileSiteKey', 'turnstileSecretKey', 'turnstileEnabled'] } },
   });
   const map: Record<string, string> = {};
   rows.forEach((r: any) => { map[r.key] = r.value; });
 
+  const enabled = map.turnstileEnabled !== 'false';
   const siteKey = map.turnstileSiteKey?.trim();
   const secretKey = map.turnstileSecretKey?.trim();
 
-  if (!siteKey || !secretKey) return true; // No Turnstile keys configured → skip verification
+  if (!enabled || !siteKey || !secretKey) return true; // Turnstile disabled or no keys configured → skip verification
   if (!token) return false;
 
   try {

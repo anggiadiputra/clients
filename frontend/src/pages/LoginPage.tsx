@@ -98,9 +98,11 @@ export default function LoginPage() {
   }, [isAuthenticated, navigate]);
 
 
+  const isTurnstileActive = settings.turnstileEnabled !== 'false' && !!settings.turnstileSiteKey?.trim();
+
   useEffect(() => {
     const siteKey = settings.turnstileSiteKey?.trim();
-    if (step !== 'password' || !siteKey) return;
+    if (step !== 'password' || !isTurnstileActive || !siteKey) return;
 
     let isMounted = true;
     let checkInterval: any;
@@ -155,11 +157,11 @@ export default function LoginPage() {
       isMounted = false;
       if (checkInterval) clearInterval(checkInterval);
     };
-  }, [step, settings.turnstileSiteKey]);
+  }, [step, isTurnstileActive, settings.turnstileSiteKey]);
 
   useEffect(() => {
     const siteKey = settings.turnstileSiteKey?.trim();
-    if (!showForgotModal || forgotStep !== 'request' || !siteKey) return;
+    if (!showForgotModal || forgotStep !== 'request' || !isTurnstileActive || !siteKey) return;
 
     let isMounted = true;
     let checkInterval: any;
@@ -339,13 +341,13 @@ export default function LoginPage() {
               </button>
             </div>
 
-            {settings.turnstileSiteKey && (
-              <div id="turnstile-widget" className="flex justify-center"></div>
+            {isTurnstileActive && (
+              <div id="turnstile-widget" className="flex justify-center my-2"></div>
             )}
 
             <button
               type="submit"
-              disabled={loading || !email || !password || (!!settings.turnstileSiteKey && !turnstileRef.current)}
+              disabled={loading || !email || !password || (isTurnstileActive && !turnstileRef.current)}
               className="w-full px-4 py-2.5 bg-black text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
             >
               {loading ? 'Memeriksa...' : 'Lanjut'}
@@ -447,12 +449,12 @@ export default function LoginPage() {
                     required
                   />
                 </div>
-                {settings.turnstileSiteKey && (
+                {isTurnstileActive && (
                   <div id="turnstile-forgot-widget" className="flex justify-center my-2"></div>
                 )}
                 <button
                   type="submit"
-                  disabled={forgotLoading || !forgotEmail || (!!settings.turnstileSiteKey && !turnstileForgotRef.current)}
+                  disabled={forgotLoading || !forgotEmail || (isTurnstileActive && !turnstileForgotRef.current)}
                   className="w-full px-4 py-2.5 bg-black text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
                 >
                   {forgotLoading ? 'Mengirim OTP...' : 'Kirim Kode OTP'}

@@ -6,6 +6,7 @@ interface Settings {
   logo: string;
   primaryColor: string;
   pageBackground: string;
+  turnstileEnabled: string;
   turnstileSiteKey: string;
   turnstileSecretKey: string;
   fonnteToken: string;
@@ -33,6 +34,7 @@ const defaultSettings: Settings = {
   logo: '',
   primaryColor: 'black',
   pageBackground: '#f0f2f5',
+  turnstileEnabled: 'true',
   turnstileSiteKey: '',
   turnstileSecretKey: '',
   fonnteToken: '',
