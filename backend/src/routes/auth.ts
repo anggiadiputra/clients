@@ -15,6 +15,7 @@ const authLimiter = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false },
   message: { error: 'Terlalu banyak percobaan. Coba lagi beberapa menit.' },
 });
 
@@ -23,6 +24,7 @@ const otpLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false },
   message: { error: 'Terlalu banyak permintaan OTP. Coba lagi nanti.' },
 });
 

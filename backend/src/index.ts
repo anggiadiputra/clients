@@ -16,7 +16,7 @@ import { requirePageAccess } from './lib/rbac';
 import prisma from './lib/prisma';
 
 const app = express();
-app.set('trust proxy', 1);
+app.set('trust proxy', true);
 const PORT = process.env.PORT || 3001;
 
 app.use(cors({
