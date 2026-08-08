@@ -94,32 +94,55 @@ export default function LoginPage() {
 
 
   useEffect(() => {
-    if (settings.turnstileSiteKey) {
-      // Load Turnstile script
-      if (!document.querySelector('script[src="https://challenges.cloudflare.com/turnstile/v0/api.js"]')) {
-        const script = document.createElement('script');
-        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
-        script.async = true;
-        script.defer = true;
-        document.head.appendChild(script);
-      }
-    }
-  }, [settings.turnstileSiteKey]);
+    if (step !== 'password' || !settings.turnstileSiteKey) return;
 
-  useEffect(() => {
-    // Render Turnstile widget
-    if (step === 'password' && settings.turnstileSiteKey) {
-      const timer = setTimeout(() => {
-        const el = document.getElementById('turnstile-widget');
-        if (el && window.turnstile && !el.hasChildNodes()) {
+    let isMounted = true;
+    let checkInterval: any;
+
+    const renderWidget = () => {
+      if (!isMounted) return;
+      const el = document.getElementById('turnstile-widget');
+      if (el && window.turnstile && !el.hasChildNodes()) {
+        try {
           window.turnstile.render('#turnstile-widget', {
             sitekey: settings.turnstileSiteKey,
             callback: (token: string) => { turnstileRef.current = token; },
+            'expired-callback': () => { turnstileRef.current = null; },
+            'error-callback': () => { turnstileRef.current = null; },
           });
+        } catch (e) {
+          console.error('Error rendering Turnstile:', e);
         }
-      }, 500);
-      return () => clearTimeout(timer);
+      }
+    };
+
+    const scriptUrl = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+    let script = document.querySelector(`script[src="${scriptUrl}"]`) as HTMLScriptElement;
+    if (!script) {
+      script = document.createElement('script');
+      script.src = scriptUrl;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => {
+        setTimeout(renderWidget, 100);
+      };
+      document.head.appendChild(script);
     }
+
+    checkInterval = setInterval(() => {
+      if (window.turnstile) {
+        renderWidget();
+        const el = document.getElementById('turnstile-widget');
+        if (el && el.hasChildNodes()) {
+          clearInterval(checkInterval);
+        }
+      }
+    }, 200);
+
+    return () => {
+      isMounted = false;
+      if (checkInterval) clearInterval(checkInterval);
+    };
   }, [step, settings.turnstileSiteKey]);
 
   async function handlePasswordSubmit(e: React.FormEvent) {
@@ -134,6 +157,8 @@ export default function LoginPage() {
       setStep('otp');
     } catch (err: any) {
       setError(err.message || 'Login gagal');
+      turnstileRef.current = null;
+      try { window.turnstile?.reset?.('#turnstile-widget'); } catch {}
     } finally {
       setLoading(false);
     }

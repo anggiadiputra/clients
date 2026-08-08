@@ -27,18 +27,25 @@ const otpLimiter = rateLimit({
 });
 
 // Verify a Cloudflare Turnstile token against the configured secret key.
-// Returns true on success (or if no site key is configured — backwards compatible).
+// Returns true on success (or if no site key or secret key is configured).
 async function verifyTurnstile(token: string | undefined): Promise<boolean> {
-  const secretRow = await prisma.setting.findUnique({ where: { key: 'turnstileSecretKey' } });
-  const secret = secretRow?.value;
-  if (!secret) return true; // No secret configured → skip verification (dev mode)
+  const rows = await prisma.setting.findMany({
+    where: { key: { in: ['turnstileSiteKey', 'turnstileSecretKey'] } },
+  });
+  const map: Record<string, string> = {};
+  rows.forEach((r: any) => { map[r.key] = r.value; });
+
+  const siteKey = map.turnstileSiteKey?.trim();
+  const secretKey = map.turnstileSecretKey?.trim();
+
+  if (!siteKey || !secretKey) return true; // No Turnstile keys configured → skip verification
   if (!token) return false;
 
   try {
     const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `secret=${encodeURIComponent(secret)}&response=${encodeURIComponent(token)}`,
+      body: `secret=${encodeURIComponent(secretKey)}&response=${encodeURIComponent(token)}`,
     });
     const json: any = await res.json();
     return json?.success === true;
@@ -95,12 +102,12 @@ router.post('/login', authLimiter, async (req: Request, res: Response) => {
       data: { email, code, expiresAt },
     });
 
-    await sendOtp(email, code);
+    await sendOtp(email, code, 'login');
 
     res.json({ step: 'otp', email });
-  } catch (error) {
+  } catch (error: any) {
     console.error(error);
-    res.status(500).json({ error: 'Gagal login' });
+    res.status(500).json({ error: error?.message || 'Gagal login' });
   }
 });
 
@@ -159,12 +166,12 @@ router.post('/otp/resend', otpLimiter, async (req: Request, res: Response) => {
       data: { email, code, expiresAt },
     });
 
-    await sendOtp(email, code);
+    await sendOtp(email, code, 'login');
 
     res.json({ message: 'OTP dikirim ulang' });
-  } catch (error) {
+  } catch (error: any) {
     console.error(error);
-    res.status(500).json({ error: 'Gagal mengirim OTP' });
+    res.status(500).json({ error: error?.message || 'Gagal mengirim OTP' });
   }
 });
 
@@ -320,12 +327,12 @@ router.post('/forgot-password', otpLimiter, async (req: Request, res: Response) 
       data: { email, code, expiresAt },
     });
 
-    await sendOtp(email, code);
+    await sendOtp(email, code, 'reset-password');
 
     res.json({ message: 'Kode OTP reset password telah dikirim ke email' });
-  } catch (error) {
+  } catch (error: any) {
     console.error(error);
-    res.status(500).json({ error: 'Gagal memproses lupa password' });
+    res.status(500).json({ error: error?.message || 'Gagal memproses lupa password' });
   }
 });
 

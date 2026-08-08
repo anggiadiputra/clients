@@ -155,14 +155,14 @@ git config --global --add safe.directory '*' && cd /home/diurusin-apis/htdocs/ap
 
 ### ⚡ 1-Liner Update Rutin Masa Mendatang
 
-#### Update FRONTEND Dashboard (`crm.diurusin.id`):
-```bash
-cd /home/diurusin-crm/htdocs/crm.diurusin.id && git fetch origin && git reset --hard origin/main && cd frontend && echo "VITE_API_URL=https://apis.diurusin.id" > .env && npm install && npm run build
-```
-
 #### Update BACKEND API (`apis.diurusin.id`):
 ```bash
-cd /home/diurusin-apis/htdocs/apis.diurusin.id && git fetch origin && git reset --hard origin/main && cd backend && cp ../.env .env 2>/dev/null || true && npm install && npx prisma db push && npm run build && pm2 restart ecosystem.config.cjs || pm2 start ecosystem.config.cjs
+cd /home/diurusin-apis/htdocs/apis.diurusin.id && git pull origin main && cd backend && cp ../.env .env 2>/dev/null || true && npm install && npx prisma db push && npm run build && (pm2 restart ecosystem.config.cjs || pm2 start ecosystem.config.cjs)
+```
+
+#### Update FRONTEND Dashboard (`crm.diurusin.id`):
+```bash
+cd /home/diurusin-crm/htdocs/crm.diurusin.id && git pull origin main && cd frontend && echo "VITE_API_URL=https://apis.diurusin.id" > .env && npm install && npm run build && rsync -av --delete ../dist/ /home/diurusin-crm/htdocs/crm.diurusin.id/dist/
 ```
 
 ---
@@ -190,6 +190,95 @@ cd /home/diurusin-apis/htdocs/apis.diurusin.id && git fetch origin && git reset 
   ```bash
   curl -I https://apis.diurusin.id/health
   ```
+
+---
+
+## 🔒 Opsional: Pemasangan Security Headers di Nginx VHost
+
+Untuk meningkatkan skor keamanan web (A+ rating pada SecurityHeaders.com), tambahkan directive berikut di dalam blok VHost CloudPanel (`crm.diurusin.id` & `apis.diurusin.id`):
+
+```nginx
+server {
+  listen 80;
+  listen [::]:80;
+  listen 443 quic;
+  listen 443 ssl;
+  listen [::]:443 quic;
+  listen [::]:443 ssl;
+  http2 on;
+  http3 off;
+  {{ssl_certificate_key}}
+  {{ssl_certificate}}
+  server_name crm.diurusin.id;
+  root /home/diurusin-crm/htdocs/crm.diurusin.id/dist;
+
+  # --- Security Headers ---
+  add_header X-Frame-Options "SAMEORIGIN" always;
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header X-XSS-Protection "1; mode=block" always;
+  add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+  add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+
+  # Forward semua request /api/ ke Backend Node.js
+  location /api/ {
+    proxy_pass http://127.0.0.1:3003/api/;
+    proxy_http_version 1.1;
+    dav_methods PUT DELETE;
+    proxy_method $request_method;
+    
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Server $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Host $host;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "Upgrade";
+    proxy_pass_request_headers on;
+  }
+
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+
+  location ^~ /.well-known/acme-challenge/ {
+    allow all;
+    root /home/diurusin-crm/htdocs/crm.diurusin.id;
+    default_type "text/plain";
+    try_files $uri =404;
+  }
+
+  {{nginx_access_log}}
+  {{nginx_error_log}}
+
+  if ($scheme != "https") {
+    rewrite ^ https://$host$request_uri permanent;
+  }
+
+  location ~ /.well-known {
+    auth_basic off;
+    allow all;
+  }
+
+  {{settings}}
+
+  include /etc/nginx/global_settings;
+
+  index index.html;
+
+  location ~* ^.+\.(css|js|jpg|jpeg|gif|png|ico|gz|svg|svgz|ttf|otf|woff|woff2|eot|mp4|ogg|ogv|webm|webp|zip|swf)$ {
+    add_header Access-Control-Allow-Origin "*";
+    add_header alt-svc 'h3=":443"; ma=86400';
+    expires max;
+    access_log off;
+  }
+
+  if (-f $request_filename) {
+    break;
+  }
+}
+```
 
 
 ---

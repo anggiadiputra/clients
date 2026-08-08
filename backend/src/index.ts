@@ -37,10 +37,16 @@ app.get('/api/settings/public', async (_req, res) => {
   try {
     res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
     const rows = await prisma.setting.findMany({
-      where: { key: { in: ['projectName','logo','primaryColor','pageBackground'] } },
+      where: { key: { in: ['projectName', 'logo', 'primaryColor', 'pageBackground', 'turnstileSiteKey'] } },
     });
-    const defs: Record<string,string> = { projectName:'Client CRM', logo:'', primaryColor:'black', pageBackground:'#f0f2f5' };
-    rows.forEach((r:any) => { defs[r.key] = r.value; });
+    const defs: Record<string, string> = {
+      projectName: 'Client CRM',
+      logo: '',
+      primaryColor: 'black',
+      pageBackground: '#f0f2f5',
+      turnstileSiteKey: '',
+    };
+    rows.forEach((r: any) => { defs[r.key] = r.value; });
     res.json(defs);
   } catch (error) {
     console.error(error);

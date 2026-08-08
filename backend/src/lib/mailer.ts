@@ -23,15 +23,16 @@ export async function sendKirisanEmail(
   channelKey: string
 ): Promise<boolean> {
   try {
-    const numericTemplate = !isNaN(Number(templateId)) ? Number(templateId) : templateId;
+    const cleanTemplateId = String(templateId || '').trim();
+    const numericTemplate = !isNaN(Number(cleanTemplateId)) ? Number(cleanTemplateId) : cleanTemplateId;
     const body = {
       keys: {
         email: {
-          token: channelKey,
+          token: String(channelKey || '').trim(),
         },
       },
       target: {
-        email: email,
+        email: String(email || '').trim(),
         variables: variables,
       },
       content: {
@@ -44,7 +45,7 @@ export async function sendKirisanEmail(
     const res = await fetch('https://api.kirisan.com/v1/send', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${String(token || '').trim()}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
@@ -56,7 +57,7 @@ export async function sendKirisanEmail(
       return false;
     }
 
-    console.log(`✅ Email/OTP terkirim via Kirisan API ke ${email}`);
+    console.log(`✅ Email OTP terkirim via Kirisan API ke ${email}`);
     return true;
   } catch (error) {
     console.error('❌ Error sending email via Kirisan API:', error);
@@ -70,6 +71,7 @@ export async function sendOtp(
   purpose: 'login' | 'register' | 'reset-password' = 'login'
 ): Promise<void> {
   // 1. Coba kirim via Kirisan API jika settings terkonfigurasi
+  let kirisanConfigured = false;
   try {
     const settings = await prisma.setting.findMany({
       where: {
@@ -88,18 +90,18 @@ export async function sendOtp(
     const config: Record<string, string> = {};
     settings.forEach((s: any) => { config[s.key] = s.value; });
 
+    const token = config.kirisanToken?.trim();
+    const channelKey = config.kirisanChannelKey?.trim();
 
-    const token = config.kirisanToken;
-    const channelKey = config.kirisanChannelKey;
-
-    let templateId = config.kirisanLoginOtpTemplateId;
-    if (purpose === 'register' && config.kirisanRegisterOtpTemplateId) {
-      templateId = config.kirisanRegisterOtpTemplateId;
-    } else if (purpose === 'reset-password' && config.kirisanResetPasswordTemplateId) {
-      templateId = config.kirisanResetPasswordTemplateId;
+    let templateId = config.kirisanLoginOtpTemplateId?.trim();
+    if (purpose === 'register' && config.kirisanRegisterOtpTemplateId?.trim()) {
+      templateId = config.kirisanRegisterOtpTemplateId.trim();
+    } else if (purpose === 'reset-password' && config.kirisanResetPasswordTemplateId?.trim()) {
+      templateId = config.kirisanResetPasswordTemplateId.trim();
     }
 
     if (token && channelKey && templateId) {
+      kirisanConfigured = true;
       const ok = await sendKirisanEmail(
         email,
         {
@@ -115,22 +117,30 @@ export async function sendOtp(
       );
 
       if (ok) return;
+
+      throw new Error('Gagal mengirim email OTP via Kirisan API. Periksa token, channel key, atau template ID di Pengaturan.');
     }
-  } catch (error) {
-    console.error('Failed checking Kirisan settings:', error);
+  } catch (error: any) {
+    console.error('Kirisan send error:', error);
+    if (error.message && error.message.includes('Kirisan API')) {
+      throw error;
+    }
   }
 
-  // 2. Fallback ke SMTP Nodemailer atau Console Log (Dev mode)
-  if (devMode) {
-    console.log(`\n📧 [DEV MODE] OTP for ${email} (${purpose}): ${code}\n`);
+  // 2. Fallback ke SMTP Nodemailer jika SMTP terkonfigurasi
+  if (process.env.SMTP_HOST && transporter) {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: email,
+      subject: `Kode OTP ${purpose === 'reset-password' ? 'Reset Password' : 'Login'} - Client CRM`,
+      text: `Kode OTP Anda: ${code}\n\nKode berlaku 5 menit.`,
+      html: `<p>Kode OTP Anda:</p><h2 style="font-size:32px;letter-spacing:4px">${code}</h2><p>Kode berlaku <strong>5 menit</strong>.</p>`,
+    });
     return;
   }
 
-  await transporter!.sendMail({
-    from: process.env.SMTP_FROM || process.env.SMTP_USER,
-    to: email,
-    subject: `Kode OTP ${purpose === 'reset-password' ? 'Reset Password' : 'Login'} - Client CRM`,
-    text: `Kode OTP Anda: ${code}\n\nKode berlaku 5 menit.`,
-    html: `<p>Kode OTP Anda:</p><h2 style="font-size:32px;letter-spacing:4px">${code}</h2><p>Kode berlaku <strong>5 menit</strong>.</p>`,
-  });
+  // 3. Jika Kirisan tidak terkonfigurasi dan tidak ada SMTP, beri pesan error transparan
+  if (!kirisanConfigured) {
+    throw new Error('Pengiriman OTP Kirisan belum lengkap (Account Token, Channel Key, dan Template ID wajib diisi di Pengaturan).');
+  }
 }
