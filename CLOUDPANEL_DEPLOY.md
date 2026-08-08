@@ -160,6 +160,18 @@ npm run build
 
 ## 🔍 TroubleShooting & Cek Log
 
+- **SSL Let's Encrypt 404 Error (`/.well-known/acme-challenge`)**:
+  Jika terjadi error 404 saat request SSL pada `crm.diurusin.id`, tambahkan blok ini di Vhost CloudPanel di atas `location /`:
+  ```nginx
+  location ^~ /.well-known/acme-challenge/ {
+      allow all;
+      root /home/diurusin-crm/htdocs/crm.diurusin.id;
+      default_type "text/plain";
+      try_files $uri =404;
+  }
+  ```
+  Atau buat symlink via SSH: `ln -sfn /home/diurusin-crm/htdocs/crm.diurusin.id/.well-known /home/diurusin-crm/htdocs/crm.diurusin.id/dist/.well-known`
+
 - **Cek Status Service Backend (PM2)**:
   ```bash
   pm2 status
@@ -169,6 +181,7 @@ npm run build
   ```bash
   curl -I https://apis.diurusin.id/health
   ```
+
 
 ---
 
