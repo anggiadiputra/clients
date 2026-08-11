@@ -18,7 +18,7 @@ cd /home/diurusin-crm/htdocs/crm.diurusin.id && git pull origin main && cd front
 
 **Catatan penting:**
 - `git pull` dilakukan di root repositori `crm.diurusin.id`
-- Build dilakukan di `frontend/` dengan `VITE_API_URL=https://apis.diurusin.id`
-- `rsync -av --delete dist/ /home/diurusin-crm/htdocs/crm.diurusin.id/dist/` menyinkronkan hasil build dan menghapus file aset lama yang ber-hash lama secara otomatis
+- Build dilakukan di `frontend/` (menghasilkan `frontend/dist/`)
+- `rsync -av --delete dist/ /home/diurusin-crm/htdocs/crm.diurusin.id/dist/` menyinkronkan hasil build ke folder public Nginx dan menghapus aset lama secara otomatis tanpa membuat folder `dist` liar di luar
 - `chown -R diurusin-crm:diurusin-crm` meriset hak milik seluruh folder agar webserver `diurusin-crm` dapat membaca aset tanpa masalah permission
 - Setelah build, clear Cloudflare cache: Cloudflare Dashboard → Caching → Purge Everything
