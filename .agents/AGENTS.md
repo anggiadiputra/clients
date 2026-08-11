@@ -6,38 +6,28 @@
 Jika user menanyakan perintah git pull / deployment Backend (BE) untuk proyek ini, berikan perintah ini:
 
 ```bash
-cd /home/diurusin-apis/htdocs/apis.diurusin.id && git pull origin main && su - diurusin-apis -c "cd /home/diurusin-apis/htdocs/apis.diurusin.id && npm install && npm run build && pm2 restart crm-backend"
+cd /home/diurusin-apis/htdocs/apis.diurusin.id && git pull origin main && npm install && npm run build && chown -R diurusin-apis:diurusin-apis /home/diurusin-apis/htdocs/apis.diurusin.id/ && su - diurusin-apis -c "cd /home/diurusin-apis/htdocs/apis.diurusin.id && pm2 restart crm-backend"
 ```
 
 **Catatan penting:**
-- `git pull` dijalankan sebagai root (karena SSH key/credentials dikonfigurasi untuk root)
-- `npm install`, `npm run build`, dan `pm2 restart` dijalankan sebagai user `diurusin-apis` via `su -`
-- Ini mencegah file `dist/` ter-create dengan ownership root yang bisa menyebabkan permission issues
+- `git pull`, `npm install`, dan `npm run build` dijalankan sebagai root (atau pengguna aktif)
+- `chown -R diurusin-apis:diurusin-apis` meriset hak milik seluruh folder agar user `diurusin-apis` memiliki hak penuh atas `dist/` dan `node_modules/`
+- `pm2 restart` dijalankan sebagai user `diurusin-apis` via `su -`
 
 Jika ingin force clean build (dist lama dihapus dulu):
 ```bash
-cd /home/diurusin-apis/htdocs/apis.diurusin.id && git pull origin main && su - diurusin-apis -c "cd /home/diurusin-apis/htdocs/apis.diurusin.id && rm -rf dist && npm install && npm run build && pm2 restart crm-backend"
-```
-
-Jika ada masalah permission (dist masih milik root), fix dulu:
-```bash
-chown -R diurusin-apis:diurusin-apis /home/diurusin-apis/htdocs/apis.diurusin.id/
+cd /home/diurusin-apis/htdocs/apis.diurusin.id && git pull origin main && rm -rf dist && npm install && npm run build && chown -R diurusin-apis:diurusin-apis /home/diurusin-apis/htdocs/apis.diurusin.id/ && su - diurusin-apis -c "cd /home/diurusin-apis/htdocs/apis.diurusin.id && pm2 restart crm-backend"
 ```
 
 ### 2. Frontend (FE) Git Pull Command
 Jika user menanyakan perintah git pull / deployment Frontend (FE) untuk proyek ini, berikan perintah ini:
 
 ```bash
-cd /home/diurusin-crm/htdocs/crm.diurusin.id && git pull origin main && su - diurusin-crm -c "cd /home/diurusin-crm/htdocs/crm.diurusin.id/frontend && VITE_API_URL=https://apis.diurusin.id npm install && npm run build"
+cd /home/diurusin-crm/htdocs/crm.diurusin.id && git pull origin main && cd frontend && VITE_API_URL=https://apis.diurusin.id npm install && npm run build && chown -R diurusin-crm:diurusin-crm /home/diurusin-crm/htdocs/crm.diurusin.id/
 ```
 
 **Catatan penting:**
-- `git pull` dijalankan sebagai root (karena SSH key/credentials dikonfigurasi untuk root)
-- `npm install` dan `npm run build` dijalankan sebagai user `diurusin-crm` via `su -`
-- Build **harus** dijalankan dari subdirectory `frontend/` agar `outDir: '../dist'` di vite.config.ts menghasilkan output ke `crm.diurusin.id/dist/` — sesuai konfigurasi vhost nginx
+- `git pull` dilakukan di root repositori `crm.diurusin.id`
+- Build dijalankan di subdirectory `frontend/` dengan `VITE_API_URL=https://apis.diurusin.id` sehingga Vite menghasilkan output langsung ke `/home/diurusin-crm/htdocs/crm.diurusin.id/dist/`
+- `chown -R diurusin-crm:diurusin-crm` meriset hak milik seluruh folder agar webserver/user `diurusin-crm` dapat mengakses file `dist/` tanpa kendala permission
 - Setelah build, clear Cloudflare cache jika halaman tidak update: Cloudflare Dashboard → Caching → Purge Everything
-
-Jika ada masalah permission, fix dulu:
-```bash
-chown -R diurusin-crm:diurusin-crm /home/diurusin-crm/htdocs/crm.diurusin.id/
-```
