@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { X, Search, Trash2 } from 'lucide-react';
 import { createInvoice, fetchClients, updateInvoice } from '../lib/api';
 import type { ServiceItem, Client, Invoice } from '../lib/types';
+import { useSettings } from '../contexts/SettingsContext';
+import { getPrimaryClasses } from '../lib/colors';
 
 interface SelectedItem {
   serviceId: number;
@@ -21,6 +23,8 @@ interface Props {
 }
 
 export default function InvoiceModal({ open, onClose, onCreated, services, mode = 'create', editData }: Props) {
+  const { settings } = useSettings();
+  const primaryClasses = getPrimaryClasses(settings.primaryColor);
   // Client
   const [clientSearch, setClientSearch] = useState('');
   const [clients, setClients] = useState<Client[]>([]);
@@ -319,7 +323,7 @@ export default function InvoiceModal({ open, onClose, onCreated, services, mode 
 
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-200 hover:bg-gray-50 text-sm font-semibold rounded-lg text-gray-700">Batal</button>
-            <button type="submit" disabled={loading} className="px-5 py-2 bg-black hover:bg-gray-800 disabled:opacity-50 text-sm font-semibold rounded-lg text-white">
+            <button type="submit" disabled={loading} className={`px-5 py-2 disabled:opacity-50 text-sm font-semibold rounded-lg text-white ${primaryClasses.button}`}>
               {loading ? 'Menyimpan...' : mode === 'edit' ? 'Simpan Perubahan' : 'Buat Invoice'}
             </button>
           </div>

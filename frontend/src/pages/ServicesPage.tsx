@@ -3,7 +3,13 @@ import { Plus, Settings2, Trash2, Tag } from 'lucide-react';
 import { fetchServices, createService, updateService, deleteService } from '../lib/api';
 import type { ServiceItem } from '../lib/types';
 
+import ConfirmModal from '../components/ConfirmModal';
+import { useSettings } from '../contexts/SettingsContext';
+import { getPrimaryClasses } from '../lib/colors';
+
 export default function ServicesPage() {
+  const { settings } = useSettings();
+  const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -12,6 +18,8 @@ export default function ServicesPage() {
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [saving, setSaving] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function load() {
     try { setServices(await fetchServices()); }
@@ -44,10 +52,22 @@ export default function ServicesPage() {
     finally { setSaving(false); }
   }
 
-  async function handleDelete(id: number) {
-    if (!confirm('Hapus layanan ini?')) return;
-    try { await deleteService(id); await load(); }
-    catch (err: any) { alert(err.message); }
+  async function handleConfirmDelete() {
+    if (!confirmDeleteId) return;
+    setDeleting(true);
+    try {
+      await deleteService(confirmDeleteId);
+      setConfirmDeleteId(null);
+      await load();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function handleDelete(id: number) {
+    setConfirmDeleteId(id);
   }
 
   if (loading) return <div className="flex items-center justify-center py-16"><svg className="animate-spin w-6 h-6 text-gray-800" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg></div>;
@@ -58,7 +78,7 @@ export default function ServicesPage() {
         <div>
           <h1 className="text-xl font-bold text-gray-900">Layanan</h1>
         </div>
-        <button onClick={openAdd} className="p-2 sm:px-4 sm:py-2 bg-black text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2" aria-label="Tambah layanan">
+        <button onClick={openAdd} className={`p-2 sm:px-4 sm:py-2 text-white text-sm font-semibold rounded-lg flex items-center justify-center gap-2 ${primaryClasses.button}`} aria-label="Tambah layanan">
           <Plus className="w-4 h-4" />
           <span className="hidden sm:inline">Tambah</span>
         </button>
@@ -141,12 +161,22 @@ export default function ServicesPage() {
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 border border-gray-200 hover:bg-gray-50 text-sm font-semibold rounded-lg text-gray-700">Batal</button>
-                <button type="submit" disabled={saving} className="px-5 py-2 bg-black hover:bg-gray-800 disabled:opacity-50 text-sm font-semibold rounded-lg text-white">{saving ? 'Menyimpan...' : 'Simpan'}</button>
+                <button type="submit" disabled={saving} className={`px-5 py-2 disabled:opacity-50 text-sm font-semibold rounded-lg text-white ${primaryClasses.button}`}>{saving ? 'Menyimpan...' : 'Simpan'}</button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={confirmDeleteId !== null}
+        title="Hapus Layanan Ini?"
+        description="Layanan ini akan dihapus secara permanen dari sistem."
+        confirmText="Hapus Layanan"
+        loading={deleting}
+        onConfirm={handleConfirmDelete}
+        onClose={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 }

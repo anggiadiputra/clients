@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { createClient } from '../lib/api';
+import { useSettings } from '../contexts/SettingsContext';
+import { getPrimaryClasses } from '../lib/colors';
 
 import type { Status } from '../lib/types';
 
@@ -12,6 +14,8 @@ interface Props {
 }
 
 export default function AddClientModal({ open, onClose, onCreated, defaultStatus = 'KERJAKAN' }: Props) {
+  const { settings } = useSettings();
+  const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -205,7 +209,7 @@ export default function AddClientModal({ open, onClose, onCreated, defaultStatus
             <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-200 hover:bg-gray-50 text-sm font-semibold rounded-lg text-gray-700 transition-colors">
               Batal
             </button>
-            <button type="submit" disabled={loading} className="px-5 py-2 bg-black hover:bg-gray-800 disabled:opacity-50 text-sm font-semibold rounded-lg text-white transition-colors">
+            <button type="submit" disabled={loading} className={`px-5 py-2 disabled:opacity-50 text-sm font-semibold rounded-lg text-white ${primaryClasses.button}`}>
               {loading ? 'Menyimpan...' : 'Simpan'}
             </button>
           </div>

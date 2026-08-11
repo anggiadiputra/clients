@@ -3,6 +3,8 @@ import { Calendar, MessageSquare, Paperclip, User as UserIcon, Banknote } from '
 import type { Project } from '../../lib/types';
 import { PROJECT_PRIORITY_COLORS, PROJECT_PRIORITY_LABELS } from '../../lib/types';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSettings } from '../../contexts/SettingsContext';
+import { getPrimaryClasses } from '../../lib/colors';
 
 interface Props {
   project: Project;
@@ -32,6 +34,8 @@ function formatRupiah(v: string | number | null | undefined): string {
 
 export default function ProjectCard({ project, isDragging, dragHandleProps, onClick }: Props) {
   const { user } = useAuth();
+  const { settings } = useSettings();
+  const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const isAdmin = user?.role === 'ADMIN';
   const overdue = project.dueDate && new Date(project.dueDate) < new Date() && project.status !== 'SELESAI';
 
@@ -58,7 +62,7 @@ export default function ProjectCard({ project, isDragging, dragHandleProps, onCl
         <Link
           to={`/clients/${project.client.displayId}`}
           onClick={(e) => e.stopPropagation()}
-          className="text-blue-600 hover:underline font-medium truncate max-w-[140px]"
+          className={`${primaryClasses.text} hover:underline font-medium truncate max-w-[140px]`}
         >
           {project.client.name}
         </Link>

@@ -1,6 +1,8 @@
 import { Search, X } from 'lucide-react';
 import type { ProjectPriority, ProjectStatus } from '../../lib/types';
 import { PROJECT_PRIORITY_LABELS, PROJECT_STATUS_LABELS } from '../../lib/types';
+import { useSettings } from '../../contexts/SettingsContext';
+import { getPrimaryClasses } from '../../lib/colors';
 
 export interface ClientLite { id: number; name: string; displayId: string }
 export interface UserLite { id: number; name: string | null; email: string }
@@ -26,6 +28,8 @@ export default function ProjectFilterBar({
   q, setQ, clientId, setClientId, assigneeId, setAssigneeId, priority, setPriority, status, setStatus,
   clients, users, onReset, hideAssignee,
 }: Props) {
+  const { settings } = useSettings();
+  const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const hasFilter = !!q || clientId !== '' || assigneeId !== '' || priority !== '' || status !== '';
 
   return (
@@ -37,13 +41,13 @@ export default function ProjectFilterBar({
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Cari judul / deskripsi..."
-          className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black"
+          className={`w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 ${primaryClasses.ring}`}
         />
       </div>
       <select
         value={status}
         onChange={(e) => setStatus(e.target.value as ProjectStatus | '')}
-        className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black"
+        className={`px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 ${primaryClasses.ring}`}
       >
         <option value="">Semua Status</option>
         {(Object.keys(PROJECT_STATUS_LABELS) as ProjectStatus[]).map((k) => (
@@ -53,7 +57,7 @@ export default function ProjectFilterBar({
       <select
         value={priority}
         onChange={(e) => setPriority(e.target.value as ProjectPriority | '')}
-        className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black"
+        className={`px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 ${primaryClasses.ring}`}
       >
         <option value="">Semua Prioritas</option>
         {(Object.keys(PROJECT_PRIORITY_LABELS) as ProjectPriority[]).map((k) => (
@@ -63,7 +67,7 @@ export default function ProjectFilterBar({
       <select
         value={clientId}
         onChange={(e) => setClientId(e.target.value ? parseInt(e.target.value) : '')}
-        className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black max-w-[180px]"
+        className={`px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 ${primaryClasses.ring} max-w-[180px]`}
       >
         <option value="">Semua Pelanggan</option>
         {clients.map((c) => (
@@ -74,7 +78,7 @@ export default function ProjectFilterBar({
         <select
           value={assigneeId}
           onChange={(e) => setAssigneeId(e.target.value ? parseInt(e.target.value) : '')}
-          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black"
+          className={`px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 ${primaryClasses.ring}`}
         >
           <option value="">Semua PIC</option>
           {users.map((u) => (

@@ -5,13 +5,17 @@ import { fetchClients, exportClientsXlsx } from '../lib/api';
 import type { Status } from '../lib/types';
 import type { Client } from '../lib/types';
 import AddClientModal from '../components/AddClientModal';
+import { useSettings } from '../contexts/SettingsContext';
+import { getPrimaryClasses } from '../lib/colors';
 
 const PAGE_SIZE = 10;
 
-// Halaman ini khusus klien yang sudah deal / pernah kerja sama. Calon + Follow Up ada di /kanban.
+// Halaman ini khusus klien yang sudah deal (termasuk DEAL, KERJAKAN, MASA_GARANSI, SELESAI). Calon + Follow Up ada di /kanban.
 const DEAL_STATUSES: Status[] = ['DEAL', 'KERJAKAN', 'MASA_GARANSI', 'SELESAI'];
 
 export default function ClientsPage() {
+  const { settings } = useSettings();
+  const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -75,7 +79,7 @@ export default function ClientsPage() {
           </button>
           <button
             onClick={() => setShowModal(true)}
-            className="p-2 sm:px-4 sm:py-2 bg-black text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+            className={`p-2 sm:px-4 sm:py-2 text-white text-sm font-semibold rounded-lg flex items-center justify-center gap-2 ${primaryClasses.button}`}
             aria-label="Tambah client"
           >
             <Plus className="w-4 h-4" />
@@ -89,7 +93,7 @@ export default function ClientsPage() {
         <div className="relative w-full sm:w-64 shrink-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
-            className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-black text-gray-800"
+            className={`w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 ${primaryClasses.ring} text-gray-800`}
             placeholder="Cari nama usaha..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -230,7 +234,7 @@ export default function ClientsPage() {
                     onClick={() => setPage(p)}
                     className={`w-8 h-8 rounded-lg text-xs font-semibold ${
                       p === page
-                        ? 'bg-black text-white'
+                        ? `${primaryClasses.bg} text-white`
                         : 'border border-gray-200 text-gray-600 hover:bg-white'
                     }`}
                   >

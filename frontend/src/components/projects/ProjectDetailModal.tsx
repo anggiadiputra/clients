@@ -14,6 +14,9 @@ import {
   fetchProject, updateProject, addProjectComment, deleteProjectComment,
   uploadProjectAttachment, deleteProjectAttachment,
 } from '../../lib/api';
+import ConfirmModal from '../ConfirmModal';
+import { useSettings } from '../../contexts/SettingsContext';
+import { getPrimaryClasses } from '../../lib/colors';
 
 interface Props {
   projectId: number;
@@ -51,9 +54,17 @@ function formatBytes(n: number): string {
 
 export default function ProjectDetailModal({ projectId, clients, users, onClose, onChanged }: Props) {
   const { user } = useAuth();
+  const { settings } = useSettings();
+  const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const isAdmin = user?.role === 'ADMIN';
   const [data, setData] = useState<ProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  }>({ open: false, title: '', description: '', onConfirm: () => {} });
   const [editing, setEditing] = useState(false);
   const [commentBody, setCommentBody] = useState('');
   const [commentSaving, setCommentSaving] = useState(false);
@@ -132,15 +143,22 @@ export default function ProjectDetailModal({ projectId, clients, users, onClose,
     }
   }
 
-  async function handleDeleteComment(c: ProjectComment) {
+  function handleDeleteComment(c: ProjectComment) {
     if (!data) return;
-    if (!confirm('Hapus komentar ini?')) return;
-    try {
-      await deleteProjectComment(data.id, c.id);
-      await load();
-    } catch (e: any) {
-      setErr(e.message || 'Gagal hapus komentar');
-    }
+    setConfirmState({
+      open: true,
+      title: 'Hapus Komentar?',
+      description: 'Komentar ini akan dihapus secara permanen.',
+      onConfirm: async () => {
+        setConfirmState((prev) => ({ ...prev, open: false }));
+        try {
+          await deleteProjectComment(data.id, c.id);
+          await load();
+        } catch (e: any) {
+          setErr(e.message || 'Gagal hapus komentar');
+        }
+      },
+    });
   }
 
   async function handleUpload(file: File) {
@@ -160,16 +178,23 @@ export default function ProjectDetailModal({ projectId, clients, users, onClose,
     }
   }
 
-  async function handleDeleteAttachment(a: ProjectAttachment) {
+  function handleDeleteAttachment(a: ProjectAttachment) {
     if (!data) return;
-    if (!confirm(`Hapus lampiran "${a.filename}"?`)) return;
-    try {
-      await deleteProjectAttachment(data.id, a.id);
-      await load();
-      onChanged();
-    } catch (e: any) {
-      setErr(e.message || 'Gagal hapus lampiran');
-    }
+    setConfirmState({
+      open: true,
+      title: 'Hapus Lampiran?',
+      description: `Apakah Anda yakin ingin menghapus lampiran "${a.filename}"?`,
+      onConfirm: async () => {
+        setConfirmState((prev) => ({ ...prev, open: false }));
+        try {
+          await deleteProjectAttachment(data.id, a.id);
+          await load();
+          onChanged();
+        } catch (e: any) {
+          setErr(e.message || 'Gagal hapus lampiran');
+        }
+      },
+    });
   }
 
   return (
@@ -203,7 +228,7 @@ export default function ProjectDetailModal({ projectId, clients, users, onClose,
                   <h3 className="text-base font-bold text-gray-900">{data.title}</h3>
                 )}
                 <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-gray-500">
-                  <Link to={`/clients/${data.client.displayId}`} className="text-blue-600 hover:underline font-medium">
+                  <Link to={`/clients/${data.client.displayId}`} className={`${primaryClasses.text} hover:underline font-medium`}>
                     {data.client.name}
                   </Link>
                   <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${PROJECT_STATUS_COLORS[data.status]}`}>
@@ -299,7 +324,7 @@ export default function ProjectDetailModal({ projectId, clients, users, onClose,
                 </div>
                 <div className="flex justify-end gap-2">
                   <button onClick={() => { setEditing(false); load(); }} className="px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-200 rounded-lg">Batal</button>
-                  <button onClick={handleSaveEdit} className="px-3 py-1.5 bg-black text-white text-xs font-semibold rounded-lg hover:bg-gray-800 inline-flex items-center gap-1">
+                  <button onClick={handleSaveEdit} className={`px-3 py-1.5 text-xs font-semibold rounded-lg inline-flex items-center gap-1 ${primaryClasses.button}`}>
                     <Save className="w-3 h-3" /> Simpan
                   </button>
                 </div>
@@ -345,7 +370,7 @@ export default function ProjectDetailModal({ projectId, clients, users, onClose,
                     placeholder="Tulis komentar…"
                     className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black"
                   />
-                  <button onClick={handleAddComment} disabled={commentSaving || !commentBody.trim()} className="px-3 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800 disabled:opacity-50 inline-flex items-center gap-1">
+                  <button onClick={handleAddComment} disabled={commentSaving || !commentBody.trim()} className={`px-3 py-2 text-white rounded-lg text-sm disabled:opacity-50 inline-flex items-center gap-1 ${primaryClasses.button}`}>
                     <Send className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -366,7 +391,7 @@ export default function ProjectDetailModal({ projectId, clients, users, onClose,
                           href={a.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-sm text-blue-600 hover:underline font-medium truncate block"
+                          className={`text-sm hover:underline font-medium truncate block ${primaryClasses.text}`}
                         >
                           {a.filename}
                         </a>
@@ -423,6 +448,14 @@ export default function ProjectDetailModal({ projectId, clients, users, onClose,
           </>
         )}
       </div>
+
+      <ConfirmModal
+        open={confirmState.open}
+        title={confirmState.title}
+        description={confirmState.description}
+        onConfirm={confirmState.onConfirm}
+        onClose={() => setConfirmState((prev) => ({ ...prev, open: false }))}
+      />
     </div>
   );
 }

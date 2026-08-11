@@ -2,11 +2,14 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { createClient, fetchClientByDisplayId, updateClient } from '../lib/api';
-import { STATUS_LABELS, STATUS_ORDER } from '../lib/types';
 import type { Client } from '../lib/types';
 import { Link } from 'react-router-dom';
+import { useSettings } from '../contexts/SettingsContext';
+import { getPrimaryClasses } from '../lib/colors';
 
 export default function ClientFormPage() {
+  const { settings } = useSettings();
+  const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const { displayId } = useParams<{ displayId: string }>();
   const isEdit = Boolean(displayId);
   const navigate = useNavigate();
@@ -171,21 +174,7 @@ export default function ClientFormPage() {
             />
           </div>
 
-          {/* Status (only for edit) */}
-          {isEdit && (
-            <div>
-              <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Status</label>
-              <select
-                value={form.status}
-                onChange={(e) => update('status', e.target.value)}
-                className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-1 focus:ring-black"
-              >
-                {STATUS_ORDER.map((s) => (
-                  <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-                ))}
-              </select>
-            </div>
-          )}
+
 
           {/* Buttons */}
           <div className="flex justify-end gap-2 pt-2">
@@ -198,7 +187,7 @@ export default function ClientFormPage() {
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2 bg-black hover:bg-gray-800 disabled:opacity-50 text-sm font-semibold rounded-lg text-white transition-colors"
+              className={`px-5 py-2 disabled:opacity-50 text-sm font-semibold rounded-lg text-white ${primaryClasses.button}`}
             >
               {loading ? 'Menyimpan...' : 'Simpan'}
             </button>

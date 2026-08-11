@@ -6,18 +6,23 @@ import { STATUS_LABELS, STATUS_COLORS } from '../lib/types';
 import type { Client, Status } from '../lib/types';
 import { Link } from 'react-router-dom';
 import AddClientModal from '../components/AddClientModal';
+import { useSettings } from '../contexts/SettingsContext';
+import { getPrimaryClasses } from '../lib/colors';
 
-// Kanban pipeline: calon client → follow up. Begitu deal, pindah ke KERJAKAN di /clients.
-const PIPELINE_STATUSES: Status[] = ['CALON_CLIENT', 'FOLLOW_UP'];
+// Kanban pipeline: calon client → follow up → deal (langsung masuk ke /clients saat deal).
+const PIPELINE_STATUSES: Status[] = ['CALON_CLIENT', 'FOLLOW_UP', 'DEAL'];
+const ACTIVE_CALON_STATUSES: Status[] = ['CALON_CLIENT', 'FOLLOW_UP'];
 
 export default function KanbanPage() {
+  const { settings } = useSettings();
+  const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
 
   const load = async () => {
     try {
-      const data = await fetchClients({ status: PIPELINE_STATUSES });
+      const data = await fetchClients({ status: ACTIVE_CALON_STATUSES });
       setClients(data);
     } catch (err) {
       console.error(err);
@@ -34,13 +39,19 @@ export default function KanbanPage() {
     const newStatus = destination.droppableId as Status;
     const clientId = parseInt(draggableId);
 
-    // Optimistic update
-    setClients((prev) =>
-      prev.map((c) => (c.id === clientId ? { ...c, status: newStatus } : c))
-    );
+    if (newStatus === 'DEAL') {
+      // Optimistically remove from Calon Pelanggan (moves to Pelanggan page)
+      setClients((prev) => prev.filter((c) => c.id !== clientId));
+    } else {
+      // Optimistic update within Calon Pelanggan
+      setClients((prev) =>
+        prev.map((c) => (c.id === clientId ? { ...c, status: newStatus } : c))
+      );
+    }
 
     try {
       await updateClient(clientId, { status: newStatus });
+      load();
     } catch {
       load(); // Revert on failure
     }
@@ -49,20 +60,26 @@ export default function KanbanPage() {
   async function promoteToNext(clientId: number, currentStatus: Status) {
     const idx = PIPELINE_STATUSES.indexOf(currentStatus);
     if (idx < 0) return;
-    // Last stage promotes to KERJAKAN (moves to Semua Client)
-    const nextStatus: Status = idx === PIPELINE_STATUSES.length - 1 ? 'KERJAKAN' : PIPELINE_STATUSES[idx + 1];
+    const nextStatus: Status = PIPELINE_STATUSES[idx + 1];
+    if (!nextStatus) return;
+
+    if (nextStatus === 'DEAL') {
+      // Optimistically remove from Calon Pelanggan (moves to Pelanggan page)
+      setClients((prev) => prev.filter((c) => c.id !== clientId));
+    }
+
     try {
       await updateClient(clientId, { status: nextStatus });
       load();
     } catch {
       console.error('Gagal memindahkan client');
+      load();
     }
   }
 
   function promoteTitle(status: Status) {
     if (status === 'CALON_CLIENT') return 'Follow Up';
     if (status === 'FOLLOW_UP') return 'Jadikan Deal';
-    if (status === 'DEAL') return 'Mulai Kerjakan';
     return 'Lanjut';
   }
 
@@ -88,7 +105,7 @@ export default function KanbanPage() {
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="px-4 py-2 bg-black text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-colors flex items-center gap-2"
+          className={`px-4 py-2 text-white text-sm font-semibold rounded-lg flex items-center gap-2 ${primaryClasses.button}`}
         >
           <Plus className="w-4 h-4" />
           Calon Client

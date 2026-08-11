@@ -3,6 +3,8 @@ import { X } from 'lucide-react';
 import type { Client, ProjectPriority, ProjectStatus, ManagedUser, ServiceItem } from '../../lib/types';
 import { PROJECT_PRIORITY_LABELS, PROJECT_STATUS_LABELS } from '../../lib/types';
 import { createProject } from '../../lib/api';
+import { useSettings } from '../../contexts/SettingsContext';
+import { getPrimaryClasses } from '../../lib/colors';
 
 interface Props {
   clients: Pick<Client, 'id' | 'name' | 'displayId'>[];
@@ -14,6 +16,8 @@ interface Props {
 }
 
 export default function CreateProjectModal({ clients, users, services, defaultClientId, onClose, onCreated }: Props) {
+  const { settings } = useSettings();
+  const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const [selectedServiceId, setSelectedServiceId] = useState<number | ''>('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -208,7 +212,7 @@ export default function CreateProjectModal({ clients, users, services, defaultCl
           <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">
             Batal
           </button>
-          <button type="submit" disabled={saving} className="px-4 py-2 bg-black text-white text-sm font-semibold rounded-lg hover:bg-gray-800 disabled:opacity-50">
+          <button type="submit" disabled={saving} className={`px-4 py-2 text-sm font-semibold rounded-lg disabled:opacity-50 ${primaryClasses.button}`}>
             {saving ? 'Membuat…' : 'Buat Proyek'}
           </button>
         </div>

@@ -8,10 +8,15 @@ import { fetchClientByDisplayId, addNote, deleteClient, deleteNote, fetchInvoice
 import { INVOICE_STATUS_LABELS, INVOICE_STATUS_COLORS, PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS, PROJECT_PRIORITY_LABELS, PROJECT_PRIORITY_COLORS } from '../lib/types';
 import type { Client, Invoice, ServiceItem, Project } from '../lib/types';
 import InvoiceModal from '../components/InvoiceModal';
+import ConfirmModal from '../components/ConfirmModal';
+import { useSettings } from '../contexts/SettingsContext';
+import { getPrimaryClasses } from '../lib/colors';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 
 export default function ClientDetailPage() {
+  const { settings } = useSettings();
+  const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const { displayId } = useParams<{ displayId: string }>();
   const navigate = useNavigate();
   const [client, setClient] = useState<Client | null>(null);
@@ -23,6 +28,20 @@ export default function ClientDetailPage() {
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [validatingWa, setValidatingWa] = useState(false);
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    confirmText?: string;
+    variant?: 'danger' | 'warning' | 'info';
+    loading?: boolean;
+    onConfirm: () => void;
+  }>({
+    open: false,
+    title: '',
+    description: '',
+    onConfirm: () => {},
+  });
 
   async function handleValidateWa() {
     if (!client) return;
@@ -42,7 +61,7 @@ export default function ClientDetailPage() {
     try {
       const data = await fetchClientByDisplayId(displayId);
       setClient(data);
-      if (['KERJAKAN', 'MASA_GARANSI', 'SELESAI'].includes(data.status)) {
+      if (['DEAL', 'KERJAKAN', 'MASA_GARANSI', 'SELESAI'].includes(data.status)) {
         fetchInvoices(data.id).then(setInvoices).catch(() => {});
       }
       fetchServices().then(setServices).catch(() => {});
@@ -60,7 +79,7 @@ export default function ClientDetailPage() {
       fetchClientByDisplayId(displayId).then((data) => {
         if (!isCurrent) return;
         setClient(data);
-        if (['KERJAKAN', 'MASA_GARANSI', 'SELESAI'].includes(data.status)) {
+        if (['DEAL', 'KERJAKAN', 'MASA_GARANSI', 'SELESAI'].includes(data.status)) {
           fetchInvoices(data.id).then((invs) => { if (isCurrent) setInvoices(invs); }).catch(() => {});
         }
         fetchServices().then((svcs) => { if (isCurrent) setServices(svcs); }).catch(() => {});
@@ -87,26 +106,90 @@ export default function ClientDetailPage() {
     }
   }
 
-  async function handleDeleteNote(noteId: number) {
-    if (!confirm('Hapus catatan ini?')) return;
+  function handleDeleteNote(noteId: number) {
     if (!client) return;
-    try {
-      await deleteNote(client.id, noteId);
-      await load();
-    } catch (err) {
-      console.error(err);
-    }
+    setConfirmState({
+      open: true,
+      title: 'Hapus Catatan?',
+      description: 'Catatan ini akan dihapus secara permanen dari sistem.',
+      confirmText: 'Hapus Catatan',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmState((prev) => ({ ...prev, loading: true }));
+        try {
+          await deleteNote(client.id, noteId);
+          setConfirmState((prev) => ({ ...prev, open: false, loading: false }));
+          await load();
+        } catch (err) {
+          console.error(err);
+          setConfirmState((prev) => ({ ...prev, loading: false }));
+        }
+      },
+    });
   }
 
-  async function handleDeleteClient() {
-    if (!confirm('Hapus client ini? Semua data akan hilang.')) return;
+  function handleDeleteClient() {
     if (!client) return;
-    try {
-      await deleteClient(client.id);
-      navigate('/clients');
-    } catch (err) {
-      console.error(err);
-    }
+    setConfirmState({
+      open: true,
+      title: 'Hapus Client Ini?',
+      description: `Apakah Anda yakin ingin menghapus client "${client.name}"? Semua data terkait (catatan, invoice, dan proyek) akan dihapus secara permanen.`,
+      confirmText: 'Hapus Client',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmState((prev) => ({ ...prev, loading: true }));
+        try {
+          await deleteClient(client.id);
+          setConfirmState((prev) => ({ ...prev, open: false, loading: false }));
+          navigate('/clients');
+        } catch (err) {
+          console.error(err);
+          setConfirmState((prev) => ({ ...prev, loading: false }));
+        }
+      },
+    });
+  }
+
+  function handleCancelInvoice(invId: number) {
+    setConfirmState({
+      open: true,
+      title: 'Batalkan Invoice?',
+      description: 'Apakah Anda yakin ingin membatalkan invoice ini? Status akan diubah menjadi Dibatalkan.',
+      confirmText: 'Batalkan Invoice',
+      variant: 'warning',
+      onConfirm: async () => {
+        setConfirmState((prev) => ({ ...prev, loading: true }));
+        try {
+          await updateInvoiceStatus(invId, 'CANCELLED');
+          setConfirmState((prev) => ({ ...prev, open: false, loading: false }));
+          await load();
+        } catch (err) {
+          console.error(err);
+          setConfirmState((prev) => ({ ...prev, loading: false }));
+        }
+      },
+    });
+  }
+
+  function handleDeleteInvoice(invId: number) {
+    setConfirmState({
+      open: true,
+      title: 'Hapus Invoice?',
+      description: 'Apakah Anda yakin ingin menghapus invoice ini secara permanen?',
+      confirmText: 'Hapus Invoice',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmState((prev) => ({ ...prev, loading: true }));
+        try {
+          await apiDeleteInvoice(invId);
+          setConfirmState((prev) => ({ ...prev, open: false, loading: false }));
+          await load();
+        } catch (err) {
+          console.error(err);
+          setConfirmState((prev) => ({ ...prev, loading: false }));
+        }
+      },
+    });
   }
 
   function formatDate(dateStr: string) {
@@ -145,7 +228,7 @@ export default function ClientDetailPage() {
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 md:p-6 mb-5">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center shrink-0">
+            <div className={`w-12 h-12 ${primaryClasses.bg} rounded-xl flex items-center justify-center shrink-0`}>
               <Building2 className="w-5.5 h-5.5 text-white" />
             </div>
             <div>
@@ -253,7 +336,7 @@ export default function ClientDetailPage() {
             <button
               type="submit"
               disabled={saving || !noteText.trim()}
-              className="px-3 py-2 bg-black text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 flex items-center gap-1"
+              className={`px-3 py-2 text-white text-sm font-semibold rounded-lg disabled:opacity-50 flex items-center gap-1 ${primaryClasses.button}`}
               aria-label="Tambah catatan"
             >
               <Plus className="w-4 h-4" />
@@ -307,8 +390,8 @@ export default function ClientDetailPage() {
         </div>
       </div>
 
-      {/* Invoice Section — only for KERJAKAN+ status */}
-      {client && ['KERJAKAN', 'MASA_GARANSI', 'SELESAI'].includes(client.status) && (
+      {/* Invoice Section — for Pelanggan status (DEAL, KERJAKAN, MASA_GARANSI, SELESAI) */}
+      {client && ['DEAL', 'KERJAKAN', 'MASA_GARANSI', 'SELESAI'].includes(client.status) && (
         <div className="mt-5 bg-white rounded-xl border border-gray-200 shadow-sm p-5 md:p-6">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
@@ -317,7 +400,7 @@ export default function ClientDetailPage() {
         </h2>
         <button
           onClick={() => setShowInvoiceModal(true)}
-          className="px-3 py-2 bg-black text-white text-xs font-semibold rounded-lg hover:bg-gray-800 transition-colors flex items-center gap-1"
+          className={`px-3 py-2 text-white text-xs font-semibold rounded-lg flex items-center gap-1 ${primaryClasses.button}`}
         >
           <Plus className="w-3.5 h-3.5" /> Buat Invoice
         </button>
@@ -352,7 +435,7 @@ export default function ClientDetailPage() {
                     )}
                     {inv.status !== 'CANCELLED' && (
                       <button
-                        onClick={async () => { if (confirm('Batalkan invoice ini?')) { await updateInvoiceStatus(inv.id, 'CANCELLED'); load(); } }}
+                        onClick={() => handleCancelInvoice(inv.id)}
                         className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         title="Batalkan"
                         aria-label="Batalkan invoice"
@@ -369,7 +452,7 @@ export default function ClientDetailPage() {
                       <Download className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={async () => { if (confirm('Hapus invoice ini?')) { await apiDeleteInvoice(inv.id); load(); } }}
+                      onClick={() => handleDeleteInvoice(inv.id)}
                       className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                       title="Hapus"
                       aria-label="Hapus invoice"
@@ -387,7 +470,7 @@ export default function ClientDetailPage() {
       )}
 
       {/* Proyek */}
-      {client && ['KERJAKAN', 'MASA_GARANSI', 'SELESAI'].includes(client.status) && (
+      {client && ['DEAL', 'KERJAKAN', 'MASA_GARANSI', 'SELESAI'].includes(client.status) && (
         <div className="mt-5 bg-white rounded-xl border border-gray-200 shadow-sm p-5 md:p-6">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
@@ -424,6 +507,17 @@ export default function ClientDetailPage() {
       )}
 
       <InvoiceModal open={showInvoiceModal} services={services} onClose={() => setShowInvoiceModal(false)} onCreated={load} />
+
+      <ConfirmModal
+        open={confirmState.open}
+        title={confirmState.title}
+        description={confirmState.description}
+        confirmText={confirmState.confirmText}
+        variant={confirmState.variant}
+        loading={confirmState.loading}
+        onConfirm={confirmState.onConfirm}
+        onClose={() => setConfirmState((prev) => ({ ...prev, open: false }))}
+      />
     </div>
   );
 }

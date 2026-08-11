@@ -12,6 +12,8 @@ import ProjectFilterBar from '../components/projects/ProjectFilterBar';
 import CreateProjectModal from '../components/projects/CreateProjectModal';
 import ProjectDetailModal from '../components/projects/ProjectDetailModal';
 import { useAuth } from '../contexts/AuthContext';
+import { useSettings } from '../contexts/SettingsContext';
+import { getPrimaryClasses } from '../lib/colors';
 
 function formatRupiah(v: string | number | null | undefined): string {
   if (v == null || v === '') return 'Rp 0';
@@ -22,6 +24,8 @@ function formatRupiah(v: string | number | null | undefined): string {
 
 export default function ProjectsPage() {
   const { user } = useAuth();
+  const { settings } = useSettings();
+  const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const isAdmin = user?.role === 'ADMIN';
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -153,7 +157,7 @@ export default function ProjectsPage() {
           {isAdmin && (
             <button
               onClick={() => setOpenCreate(true)}
-              className="px-4 py-2 bg-black text-white text-sm font-semibold rounded-lg hover:bg-gray-800 inline-flex items-center gap-1.5"
+              className={`px-4 py-2 text-sm font-semibold rounded-lg inline-flex items-center gap-1.5 ${primaryClasses.button}`}
             >
               <Plus className="w-4 h-4" /> Baru
             </button>
@@ -197,7 +201,7 @@ export default function ProjectsPage() {
                       <div
                         ref={provided.innerRef}
                         {...provided.droppableProps}
-                        className={`flex-1 space-y-2 transition-colors rounded-lg p-1 ${snapshot.isDraggingOver ? 'bg-blue-50' : ''}`}
+                        className={`flex-1 space-y-2 transition-colors rounded-lg p-1 ${snapshot.isDraggingOver ? primaryClasses.lightBg : ''}`}
                         style={{ minHeight: 100 }}
                       >
                         {list.map((p, idx) => (

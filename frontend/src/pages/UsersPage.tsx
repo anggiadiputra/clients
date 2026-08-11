@@ -5,6 +5,9 @@ import {
   type ManagedUser,
 } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import ConfirmModal from '../components/ConfirmModal';
+import { useSettings } from '../contexts/SettingsContext';
+import { getPrimaryClasses } from '../lib/colors';
 
 const ROLES = ['ADMIN', 'STAFF', 'VIEWER'] as const;
 const ROLE_LABELS: Record<string, string> = {
@@ -19,6 +22,8 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export default function UsersPage() {
+  const { settings } = useSettings();
+  const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const { user: me, refreshUser } = useAuth();
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +32,8 @@ export default function UsersPage() {
   const [globalMsg, setGlobalMsg] = useState<string | null>(null);
   const [globalErr, setGlobalErr] = useState<string | null>(null);
   const [selfRoleChanged, setSelfRoleChanged] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null);
+  const [deletingUser, setDeletingUser] = useState(false);
 
   async function load() {
     try {
@@ -69,6 +76,21 @@ export default function UsersPage() {
     load();
   }
 
+  async function handleConfirmDeleteUser() {
+    if (!deleteTarget) return;
+    setDeletingUser(true);
+    try {
+      await deleteUser(deleteTarget.id);
+      setGlobalMsg(`User ${deleteTarget.email} berhasil dihapus`);
+      setDeleteTarget(null);
+      await load();
+    } catch (err: any) {
+      setGlobalErr(err.message || 'Gagal menghapus user');
+    } finally {
+      setDeletingUser(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -77,7 +99,7 @@ export default function UsersPage() {
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="p-2 sm:px-4 sm:py-2 bg-black text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+          className={`p-2 sm:px-4 sm:py-2 text-white text-sm font-semibold rounded-lg flex items-center justify-center gap-2 ${primaryClasses.button}`}
           aria-label="Tambah user"
         >
           <Plus className="w-4 h-4" />
@@ -104,7 +126,7 @@ export default function UsersPage() {
           </p>
           <button
             onClick={applySelfRefresh}
-            className="self-start sm:self-auto px-3 py-1.5 bg-black text-white text-xs font-semibold rounded-lg hover:bg-gray-800 transition-colors"
+            className={`self-start sm:self-auto px-3 py-1.5 text-white text-xs font-semibold rounded-lg ${primaryClasses.button}`}
           >
             Refresh Sesi Saya
           </button>
@@ -161,16 +183,7 @@ export default function UsersPage() {
                           <KeyRound className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={async () => {
-                            if (!confirm(`Hapus user ${u.email}? Tindakan ini tidak dapat dibatalkan.`)) return;
-                            try {
-                              await deleteUser(u.id);
-                              setGlobalMsg(`User ${u.email} dihapus`);
-                              load();
-                            } catch (err: any) {
-                              setGlobalErr(err.message || 'Gagal menghapus user');
-                            }
-                          }}
+                          onClick={() => setDeleteTarget(u)}
                           disabled={isMe}
                           className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                           aria-label={`Hapus user ${u.email}`}
@@ -216,11 +229,7 @@ export default function UsersPage() {
                     aria-label="Reset password"
                   ><KeyRound className="w-3.5 h-3.5" /></button>
                   <button
-                    onClick={async () => {
-                      if (!confirm(`Hapus ${u.email}?`)) return;
-                      try { await deleteUser(u.id); load(); setGlobalMsg('User dihapus'); }
-                      catch (err: any) { setGlobalErr(err.message || 'Gagal'); }
-                    }}
+                    onClick={() => setDeleteTarget(u)}
                     disabled={isMe}
                     className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-30"
                     aria-label="Hapus user"
@@ -255,6 +264,16 @@ export default function UsersPage() {
           onError={(msg) => setGlobalErr(msg)}
         />
       )}
+
+      <ConfirmModal
+        open={deleteTarget !== null}
+        title="Hapus Pengguna Ini?"
+        description={deleteTarget ? `Apakah Anda yakin ingin menghapus akun pengguna "${deleteTarget.email}"? Tindakan ini tidak dapat dibatalkan.` : ''}
+        confirmText="Hapus Pengguna"
+        loading={deletingUser}
+        onConfirm={handleConfirmDeleteUser}
+        onClose={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
@@ -263,6 +282,8 @@ function AddUserModal({ onClose, onCreated, onError }: {
   onClose: () => void; onCreated: () => void;
   onError: (msg: string) => void;
 }) {
+  const { settings } = useSettings();
+  const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -328,7 +349,7 @@ function AddUserModal({ onClose, onCreated, onError }: {
             <button type="button" onClick={onClose}
               className="px-4 py-2 border border-gray-200 hover:bg-gray-50 text-sm font-semibold rounded-lg text-gray-700">Batal</button>
             <button type="submit" disabled={loading}
-              className="px-5 py-2 bg-black hover:bg-gray-800 disabled:opacity-50 text-sm font-semibold rounded-lg text-white">
+              className={`px-5 py-2 disabled:opacity-50 text-sm font-semibold rounded-lg text-white ${primaryClasses.button}`}>
               {loading ? 'Membuat...' : 'Buat User'}
             </button>
           </div>
@@ -343,6 +364,8 @@ function ResetPasswordModal({ target, onClose, onDone, onError }: {
   onClose: () => void; onDone: () => void;
   onError: (msg: string) => void;
 }) {
+  const { settings } = useSettings();
+  const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -389,7 +412,7 @@ function ResetPasswordModal({ target, onClose, onDone, onError }: {
             <button type="button" onClick={onClose}
               className="px-4 py-2 border border-gray-200 hover:bg-gray-50 text-sm font-semibold rounded-lg text-gray-700">Batal</button>
             <button type="submit" disabled={loading}
-              className="px-5 py-2 bg-black hover:bg-gray-800 disabled:opacity-50 text-sm font-semibold rounded-lg text-white">
+              className={`px-5 py-2 disabled:opacity-50 text-sm font-semibold rounded-lg text-white ${primaryClasses.button}`}>
               {loading ? 'Menyimpan...' : 'Reset Password'}
             </button>
           </div>

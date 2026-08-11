@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiUpdateProfile, apiChangePassword } from '../lib/api';
+import { useSettings } from '../contexts/SettingsContext';
+import { getPrimaryClasses } from '../lib/colors';
 import { User, Mail, Lock, Eye, EyeOff, CheckCircle2, UserCog, KeyRound } from 'lucide-react';
 
 
 export default function ProfilePage() {
   const { user, updateUser } = useAuth();
+  const { settings } = useSettings();
+  const primaryClasses = getPrimaryClasses(settings.primaryColor);
 
   // Profile form state
   const [name, setName] = useState(user?.name || '');
@@ -146,7 +150,7 @@ export default function ProfilePage() {
               </div>
               <button
                 onClick={() => setEditingProfile(true)}
-                className="w-full px-4 py-2.5 bg-black text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+                className={`w-full px-4 py-2.5 text-white text-sm font-semibold rounded-lg flex items-center justify-center gap-2 ${primaryClasses.button}`}
               >
                 <UserCog className="w-4 h-4" />
                 Edit Profil
@@ -203,7 +207,7 @@ export default function ProfilePage() {
                 <button
                   type="submit"
                   disabled={profileLoading || !email.trim()}
-                  className="flex-1 px-4 py-2 bg-black text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
+                  className={`flex-1 px-4 py-2 text-white text-sm font-semibold rounded-lg disabled:opacity-50 ${primaryClasses.button}`}
                 >
                   {profileLoading ? 'Menyimpan...' : 'Simpan Profil'}
                 </button>
@@ -250,7 +254,7 @@ export default function ProfilePage() {
               </div>
               <button
                 onClick={() => setEditingPassword(true)}
-                className="w-full px-4 py-2.5 bg-black text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+                className={`w-full px-4 py-2.5 text-white text-sm font-semibold rounded-lg flex items-center justify-center gap-2 ${primaryClasses.button}`}
               >
                 <KeyRound className="w-4 h-4" />
                 Ubah Kata Sandi

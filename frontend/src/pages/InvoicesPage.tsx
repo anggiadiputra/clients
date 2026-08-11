@@ -5,10 +5,14 @@ import { fetchAllInvoices, downloadInvoicePdf, fetchServices } from '../lib/api'
 import { INVOICE_STATUS_LABELS, INVOICE_STATUS_COLORS } from '../lib/types';
 import type { Invoice, ServiceItem } from '../lib/types';
 import InvoiceModal from '../components/InvoiceModal';
+import { useSettings } from '../contexts/SettingsContext';
+import { getPrimaryClasses } from '../lib/colors';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 
 export default function InvoicesPage() {
+  const { settings } = useSettings();
+  const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const [invoices, setInvoices] = useState<(Invoice & { client?: { name: string; displayId: string } })[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -55,7 +59,7 @@ export default function InvoicesPage() {
           <h1 className="text-xl font-bold text-gray-900">Invoice</h1>
         </div>
         <button onClick={handleCreate}
-          className="p-2 sm:px-4 sm:py-2 bg-black text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+          className={`p-2 sm:px-4 sm:py-2 text-white text-sm font-semibold rounded-lg flex items-center justify-center gap-2 ${primaryClasses.button}`}
           aria-label="Buat invoice baru">
           <Plus className="w-4 h-4" />
           <span className="hidden sm:inline">Buat Invoice</span>

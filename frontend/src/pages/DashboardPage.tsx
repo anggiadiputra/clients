@@ -6,9 +6,13 @@ import { STATUS_LABELS, STATUS_ORDER } from '../lib/types';
 import type { Client, Project, Invoice } from '../lib/types';
 import AddClientModal from '../components/AddClientModal';
 import { useAuth } from '../contexts/AuthContext';
+import { useSettings } from '../contexts/SettingsContext';
+import { getPrimaryClasses } from '../lib/colors';
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const { settings } = useSettings();
+  const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const isAdmin = user?.role === 'ADMIN';
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -66,7 +70,7 @@ export default function DashboardPage() {
   const recentClients = [...clients].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5);
 
   const baseCards = [
-    { icon: Users, label: 'Total Client', value: clients.length, color: 'bg-black' },
+    { icon: Users, label: 'Total Client', value: clients.length, color: primaryClasses.bg },
     { icon: Clock, label: STATUS_LABELS.FOLLOW_UP, value: counts.FOLLOW_UP || 0, color: 'bg-amber-500' },
     { icon: TrendingUp, label: STATUS_LABELS.KERJAKAN, value: counts.KERJAKAN || 0, color: 'bg-purple-600' },
   ];
@@ -126,7 +130,7 @@ export default function DashboardPage() {
         {isAdmin && (
           <button
             onClick={() => setShowModal(true)}
-            className="p-2 sm:px-4 sm:py-2 bg-black text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+            className={`p-2 sm:px-4 sm:py-2 text-white text-sm font-semibold rounded-lg flex items-center justify-center gap-2 ${primaryClasses.button}`}
             aria-label="Tambah client"
           >
             <Plus className="w-4 h-4" />
@@ -163,7 +167,7 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-3">
                   <div className="w-32 h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-black rounded-full transition-all"
+                      className={`h-full rounded-full transition-all ${primaryClasses.bg}`}
                       style={{ width: clients.length ? `${((counts[s] || 0) / clients.length) * 100}%` : '0%' }}
                     />
                   </div>
