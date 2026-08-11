@@ -142,7 +142,7 @@ export async function fetchClients(params?: { search?: string; status?: string |
   if (params?.search) qs.set('search', params.search);
   const status = params?.status;
   if (Array.isArray(status)) {
-    for (const s of status) qs.append('status', s);
+    if (status.length > 0) qs.set('status', status.join(','));
   } else if (status) {
     qs.set('status', status);
   }
