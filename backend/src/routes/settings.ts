@@ -59,7 +59,13 @@ router.get('/', async (_req: Request, res: Response) => {
     rows.forEach((r: any) => { settings[r.key] = r.value; });
     settingsCache = settings;
 
-    res.json(settings);
+    // Safety guard: jika turnstileEnabled='true' tapi site key kosong, nonaktifkan otomatis.
+    // Ini mencegah 405 error dari Cloudflare challenge platform di production.
+    if (settingsCache.turnstileEnabled === 'true' && !settingsCache.turnstileSiteKey?.trim()) {
+      settingsCache = { ...settingsCache, turnstileEnabled: 'false' };
+    }
+
+    res.json(settingsCache);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch settings' });
