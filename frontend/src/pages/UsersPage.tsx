@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users as UsersIcon, Plus, X, ShieldCheck, KeyRound, Trash2, CheckCircle2 } from 'lucide-react';
+import { Plus, X, ShieldCheck, KeyRound, Trash2, CheckCircle2, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   fetchUsers, createUser, updateUserRole, deleteUser, adminResetPassword,
   type ManagedUser,
@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import ConfirmModal from '../components/ConfirmModal';
 import { useSettings } from '../contexts/SettingsContext';
 import { getPrimaryClasses } from '../lib/colors';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 const ROLES = ['ADMIN', 'STAFF', 'VIEWER'] as const;
 const ROLE_LABELS: Record<string, string> = {
@@ -22,6 +23,7 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export default function UsersPage() {
+  useDocumentTitle('Manajemen User');
   const { settings } = useSettings();
   const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const { user: me, refreshUser } = useAuth();
@@ -33,6 +35,9 @@ export default function UsersPage() {
   const [globalErr, setGlobalErr] = useState<string | null>(null);
   const [selfRoleChanged, setSelfRoleChanged] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null);
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState<string>('');
+  const [page, setPage] = useState(1);
   const [deletingUser, setDeletingUser] = useState(false);
 
   async function load() {
@@ -133,35 +138,127 @@ export default function UsersPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        {/* Desktop table */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Nama</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Email</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {loading ? (
-                <tr><td colSpan={4} className="px-4 py-10 text-center text-gray-400">Memuat...</td></tr>
-              ) : users.length === 0 ? (
-                <tr><td colSpan={4} className="px-4 py-10 text-center text-gray-400">Belum ada user</td></tr>
-              ) : users.map((u) => {
+      {/* Filter & Live Search */}
+      <div className="bg-white border border-gray-200 rounded-xl p-3 flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            placeholder="Cari nama atau email user..."
+            className={`w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 ${primaryClasses.ring} text-gray-800`}
+          />
+        </div>
+        <select
+          value={roleFilter}
+          onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
+          className={`px-3 py-2 border border-gray-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 ${primaryClasses.ring} text-gray-800`}
+        >
+          <option value="">Semua Role</option>
+          {ROLES.map((r) => (
+            <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+          ))}
+        </select>
+      </div>
+
+      {(() => {
+        const filteredUsers = users.filter((u) => {
+          const matchSearch =
+            !search.trim() ||
+            (u.name || '').toLowerCase().includes(search.toLowerCase()) ||
+            u.email.toLowerCase().includes(search.toLowerCase());
+          const matchRole = !roleFilter || u.role === roleFilter;
+          return matchSearch && matchRole;
+        });
+
+        const totalPages = Math.ceil(filteredUsers.length / 10) || 1;
+        const paginatedUsers = filteredUsers.slice((page - 1) * 10, page * 10);
+
+        return (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            {/* Desktop table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Nama</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Email</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {loading ? (
+                    <tr><td colSpan={4} className="px-4 py-10 text-center text-gray-400">Memuat...</td></tr>
+                  ) : paginatedUsers.length === 0 ? (
+                    <tr><td colSpan={4} className="px-4 py-10 text-center text-gray-400">{search || roleFilter ? 'User tidak ditemukan' : 'Belum ada user'}</td></tr>
+                  ) : paginatedUsers.map((u) => {
+                    const isMe = me?.id === u.id;
+                    return (
+                      <tr key={u.id} className="hover:bg-gray-50/50">
+                        <td className="px-4 py-3">
+                          <p className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                            {u.name || <span className="text-gray-400 italic font-normal">Tanpa nama</span>}
+                            {isMe && <span className="text-[10px] font-bold uppercase text-gray-400">(Anda)</span>}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-600 font-mono break-all">{u.email}</td>
+                        <td className="px-4 py-3">
+                          <select
+                            value={u.role}
+                            onChange={(e) => changeRole(u, e.target.value as ManagedUser['role'])}
+                            className={`px-2 py-1 rounded-full text-xs font-bold border ${ROLE_COLORS[u.role]} focus:outline-none`}
+                          >
+                            {ROLES.map((r) => (
+                              <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end gap-1">
+                            <button
+                              onClick={() => setResetTarget(u)}
+                              className="p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
+                              aria-label={`Reset password ${u.email}`}
+                              title="Reset password"
+                            >
+                              <KeyRound className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setDeleteTarget(u)}
+                              disabled={isMe}
+                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                              aria-label={`Hapus user ${u.email}`}
+                              title={isMe ? 'Tidak dapat menghapus akun sendiri' : 'Hapus user'}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="block md:hidden divide-y divide-gray-100">
+              {paginatedUsers.map((u) => {
                 const isMe = me?.id === u.id;
                 return (
-                  <tr key={u.id} className="hover:bg-gray-50/50">
-                    <td className="px-4 py-3">
-                      <p className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                        {u.name || <span className="text-gray-400 italic font-normal">Tanpa nama</span>}
-                        {isMe && <span className="text-[10px] font-bold uppercase text-gray-400">(Anda)</span>}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-600 font-mono break-all">{u.email}</td>
-                    <td className="px-4 py-3">
+                  <div key={u.id} className="p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{u.name || 'Tanpa nama'}</p>
+                        <p className="text-xs text-gray-500 font-mono truncate">{u.email}</p>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${ROLE_COLORS[u.role]}`}>
+                        {ROLE_LABELS[u.role]}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
                       <select
                         value={u.role}
                         onChange={(e) => changeRole(u, e.target.value as ManagedUser['role'])}
@@ -171,13 +268,10 @@ export default function UsersPage() {
                           <option key={r} value={r}>{ROLE_LABELS[r]}</option>
                         ))}
                       </select>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1">
+                      <div className="ml-auto flex gap-1">
                         <button
                           onClick={() => setResetTarget(u)}
                           className="p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg transition-colors"
-                          aria-label={`Reset password ${u.email}`}
                           title="Reset password"
                         >
                           <KeyRound className="w-3.5 h-3.5" />
@@ -186,67 +280,47 @@ export default function UsersPage() {
                           onClick={() => setDeleteTarget(u)}
                           disabled={isMe}
                           className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                          aria-label={`Hapus user ${u.email}`}
                           title={isMe ? 'Tidak dapat menghapus akun sendiri' : 'Hapus user'}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+            </div>
 
-        {/* Mobile cards */}
-        <div className="block md:hidden divide-y divide-gray-100">
-          {users.map((u) => {
-            const isMe = me?.id === u.id;
-            return (
-              <div key={u.id} className="p-4 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{u.name || 'Tanpa nama'}</p>
-                    <p className="text-xs text-gray-500 font-mono truncate">{u.email}</p>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${ROLE_COLORS[u.role]}`}>
-                    {ROLE_LABELS[u.role]}
-                  </span>
-                </div>
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                <span className="text-xs text-gray-500 font-medium">
+                  Menampilkan {((page - 1) * 10) + 1} - {Math.min(page * 10, filteredUsers.length)} dari {filteredUsers.length} data
+                </span>
                 <div className="flex items-center gap-1">
-                  <select
-                    value={u.role}
-                    onChange={(e) => changeRole(u, e.target.value as ManagedUser['role'])}
-                    className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold border ${ROLE_COLORS[u.role]}`}
+                  <button
+                    onClick={() => setPage((p) => Math.max(p - 1, 1))}
+                    disabled={page === 1}
+                    className="p-1.5 border border-gray-200 rounded-lg hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
                   >
-                    {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                  </select>
+                    <ChevronLeft className="w-4 h-4 text-gray-600" />
+                  </button>
+                  <span className="px-3 text-xs font-semibold text-gray-700">
+                    {page} / {totalPages}
+                  </span>
                   <button
-                    onClick={() => setResetTarget(u)}
-                    className="p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-lg"
-                    aria-label="Reset password"
-                  ><KeyRound className="w-3.5 h-3.5" /></button>
-                  <button
-                    onClick={() => setDeleteTarget(u)}
-                    disabled={isMe}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-30"
-                    aria-label="Hapus user"
-                  ><Trash2 className="w-3.5 h-3.5" /></button>
+                    onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+                    disabled={page === totalPages}
+                    className="p-1.5 border border-gray-200 rounded-lg hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                  >
+                    <ChevronRight className="w-4 h-4 text-gray-600" />
+                  </button>
                 </div>
               </div>
-            );
-          })}
-        </div>
-
-        {!loading && users.length === 0 && (
-          <div className="text-center py-16 p-6 block md:hidden">
-            <UsersIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-            <p className="text-sm font-medium text-gray-500">Belum ada user lain</p>
+            )}
           </div>
-        )}
-      </div>
+        );
+      })()}
 
       {showAddModal && (
         <AddUserModal

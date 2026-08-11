@@ -6,12 +6,14 @@ import type { Client } from '../lib/types';
 import { Link } from 'react-router-dom';
 import { useSettings } from '../contexts/SettingsContext';
 import { getPrimaryClasses } from '../lib/colors';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 export default function ClientFormPage() {
   const { settings } = useSettings();
   const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const { displayId } = useParams<{ displayId: string }>();
   const isEdit = Boolean(displayId);
+  useDocumentTitle(isEdit ? 'Edit Pelanggan' : 'Tambah Pelanggan');
   const navigate = useNavigate();
   const [storedClient, setStoredClient] = useState<Client | null>(null);
 

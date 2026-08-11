@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react';
-import { Plus, Settings2, Trash2, Tag } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Plus, Settings2, Trash2, Tag, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { fetchServices, createService, updateService, deleteService } from '../lib/api';
 import type { ServiceItem } from '../lib/types';
-
 import ConfirmModal from '../components/ConfirmModal';
 import { useSettings } from '../contexts/SettingsContext';
 import { getPrimaryClasses } from '../lib/colors';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
+
+const PAGE_SIZE = 10;
 
 export default function ServicesPage() {
+  useDocumentTitle('Layanan');
   const { settings } = useSettings();
   const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const [services, setServices] = useState<ServiceItem[]>([]);
@@ -20,6 +23,8 @@ export default function ServicesPage() {
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
 
   async function load() {
     try { setServices(await fetchServices()); }
@@ -70,6 +75,23 @@ export default function ServicesPage() {
     setConfirmDeleteId(id);
   }
 
+  const filteredServices = useMemo(() => {
+    return services.filter((s) => {
+      if (!search.trim()) return true;
+      const q = search.toLowerCase();
+      return (
+        s.name.toLowerCase().includes(q) ||
+        (s.description || '').toLowerCase().includes(q)
+      );
+    });
+  }, [services, search]);
+
+  const totalPages = Math.ceil(filteredServices.length / PAGE_SIZE) || 1;
+  const paginatedServices = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filteredServices.slice(start, start + PAGE_SIZE);
+  }, [filteredServices, page]);
+
   if (loading) return <div className="flex items-center justify-center py-16"><svg className="animate-spin w-6 h-6 text-gray-800" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg></div>;
 
   return (
@@ -84,11 +106,29 @@ export default function ServicesPage() {
         </button>
       </div>
 
-      {services.length === 0 ? (
+      {/* Filter & Live Search */}
+      <div className="bg-white border border-gray-200 rounded-xl p-3 mb-4 flex items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            placeholder="Cari nama atau deskripsi layanan..."
+            className={`w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 ${primaryClasses.ring} text-gray-800`}
+          />
+        </div>
+      </div>
+
+      {filteredServices.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200 shadow-sm p-6">
           <Tag className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-          <p className="text-sm font-medium text-gray-500">Belum ada layanan</p>
-          <p className="text-xs text-gray-400 mt-1">Tambah layanan untuk digunakan di invoice</p>
+          <p className="text-sm font-medium text-gray-500">
+            {search ? 'Layanan tidak ditemukan' : 'Belum ada layanan'}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            {search ? 'Coba ubah kata kunci pencarian Anda' : 'Tambah layanan untuk digunakan di invoice'}
+          </p>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -103,7 +143,7 @@ export default function ServicesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {services.map((s) => (
+                {paginatedServices.map((s) => (
                   <tr key={s.id} className="hover:bg-gray-50/50">
                     <td className="px-4 py-3 text-sm font-semibold text-gray-900">{s.name}</td>
                     <td className="px-4 py-3 text-xs text-gray-500">{s.description || '-'}</td>
@@ -122,7 +162,7 @@ export default function ServicesPage() {
 
           {/* Mobile */}
           <div className="block md:hidden divide-y divide-gray-100">
-            {services.map((s) => (
+            {paginatedServices.map((s) => (
               <div key={s.id} className="p-4 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-gray-900">{s.name}</p>
@@ -135,20 +175,45 @@ export default function ServicesPage() {
               </div>
             ))}
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+              <span className="text-xs text-gray-500 font-medium">
+                Menampilkan {((page - 1) * PAGE_SIZE) + 1} - {Math.min(page * PAGE_SIZE, filteredServices.length)} dari {filteredServices.length} data
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage((p) => Math.max(p - 1, 1))}
+                  disabled={page === 1}
+                  className="p-1.5 border border-gray-200 rounded-lg hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4 text-gray-600" />
+                </button>
+                <span className="px-3 text-xs font-semibold text-gray-700">
+                  {page} / {totalPages}
+                </span>
+                <button
+                  onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+                  disabled={page === totalPages}
+                  className="p-1.5 border border-gray-200 rounded-lg hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4 text-gray-600" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Modal */}
+      {/* Modal Add/Edit */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-xl max-w-md w-full">
-            <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-b border-gray-100">
-              <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">{editService ? 'Edit' : 'Tambah'} Layanan</h2>
-              <button onClick={() => setShowModal(false)} className="p-1 hover:bg-gray-200 rounded-lg text-gray-400 hover:text-gray-600"><Plus className="w-4 h-4 rotate-45" /></button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">{editService ? 'Edit Layanan' : 'Tambah Layanan Baru'}</h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Nama *</label>
+                <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Nama Layanan *</label>
                 <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800" required />
               </div>
               <div>

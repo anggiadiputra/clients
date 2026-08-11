@@ -7,6 +7,7 @@ import type { Client } from '../lib/types';
 import AddClientModal from '../components/AddClientModal';
 import { useSettings } from '../contexts/SettingsContext';
 import { getPrimaryClasses } from '../lib/colors';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 const PAGE_SIZE = 10;
 
@@ -14,6 +15,7 @@ const PAGE_SIZE = 10;
 const DEAL_STATUSES: Status[] = ['DEAL', 'KERJAKAN', 'MASA_GARANSI', 'SELESAI'];
 
 export default function ClientsPage() {
+  useDocumentTitle('Pelanggan');
   const { settings } = useSettings();
   const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const [clients, setClients] = useState<Client[]>([]);

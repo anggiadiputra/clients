@@ -8,8 +8,10 @@ import AddClientModal from '../components/AddClientModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { getPrimaryClasses } from '../lib/colors';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 export default function DashboardPage() {
+  useDocumentTitle('Dashboard');
   const { user } = useAuth();
   const { settings } = useSettings();
   const primaryClasses = getPrimaryClasses(settings.primaryColor);

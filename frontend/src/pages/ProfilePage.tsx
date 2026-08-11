@@ -3,10 +3,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { apiUpdateProfile, apiChangePassword } from '../lib/api';
 import { useSettings } from '../contexts/SettingsContext';
 import { getPrimaryClasses } from '../lib/colors';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { User, Mail, Lock, Eye, EyeOff, CheckCircle2, UserCog, KeyRound } from 'lucide-react';
 
 
 export default function ProfilePage() {
+  useDocumentTitle('Profil');
   const { user, updateUser } = useAuth();
   const { settings } = useSettings();
   const primaryClasses = getPrimaryClasses(settings.primaryColor);

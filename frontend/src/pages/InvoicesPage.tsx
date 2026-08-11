@@ -1,22 +1,29 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, Download, Plus } from 'lucide-react';
+import { FileText, Download, Plus, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { fetchAllInvoices, downloadInvoicePdf, fetchServices } from '../lib/api';
 import { INVOICE_STATUS_LABELS, INVOICE_STATUS_COLORS } from '../lib/types';
-import type { Invoice, ServiceItem } from '../lib/types';
+import type { Invoice, ServiceItem, InvoiceStatus } from '../lib/types';
 import InvoiceModal from '../components/InvoiceModal';
 import { useSettings } from '../contexts/SettingsContext';
 import { getPrimaryClasses } from '../lib/colors';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 
+const PAGE_SIZE = 10;
+
 export default function InvoicesPage() {
+  useDocumentTitle('Invoice');
   const { settings } = useSettings();
   const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const [invoices, setInvoices] = useState<(Invoice & { client?: { name: string; displayId: string } })[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [services, setServices] = useState<ServiceItem[]>([]);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<InvoiceStatus | ''>('');
+  const [page, setPage] = useState(1);
 
   async function load() {
     try {
@@ -40,6 +47,24 @@ export default function InvoicesPage() {
     try { return format(new Date(dateStr), 'EEEE, dd MMMM yyyy', { locale: id }); }
     catch { return dateStr; }
   }
+
+  const filteredInvoices = useMemo(() => {
+    return invoices.filter((inv) => {
+      const matchSearch =
+        !search.trim() ||
+        inv.invoiceNumber.toLowerCase().includes(search.toLowerCase()) ||
+        ((inv as any).client?.name || '').toLowerCase().includes(search.toLowerCase()) ||
+        ((inv as any).client?.displayId || '').toLowerCase().includes(search.toLowerCase());
+      const matchStatus = !statusFilter || inv.status === statusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [invoices, search, statusFilter]);
+
+  const totalPages = Math.ceil(filteredInvoices.length / PAGE_SIZE) || 1;
+  const paginatedInvoices = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filteredInvoices.slice(start, start + PAGE_SIZE);
+  }, [filteredInvoices, page]);
 
   if (loading) {
     return (
@@ -66,11 +91,39 @@ export default function InvoicesPage() {
         </button>
       </div>
 
-      {invoices.length === 0 ? (
+      {/* Filter & Live Search */}
+      <div className="bg-white border border-gray-200 rounded-xl p-3 mb-4 flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            placeholder="Cari nomor invoice atau nama pelanggan..."
+            className={`w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 ${primaryClasses.ring} text-gray-800`}
+          />
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => { setStatusFilter(e.target.value as any); setPage(1); }}
+          className={`px-3 py-2 border border-gray-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 ${primaryClasses.ring} text-gray-800`}
+        >
+          <option value="">Semua Status</option>
+          <option value="UNPAID">Belum Dibayar</option>
+          <option value="PAID">Lunas</option>
+          <option value="CANCELLED">Dibatalkan</option>
+        </select>
+      </div>
+
+      {filteredInvoices.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200 shadow-sm p-6">
           <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-          <p className="text-sm font-medium text-gray-500">Belum ada invoice</p>
-          <p className="text-xs text-gray-400 mt-1">Buat invoice dari halaman detail client dengan status Deal</p>
+          <p className="text-sm font-medium text-gray-500">
+            {search || statusFilter ? 'Invoice tidak ditemukan' : 'Belum ada invoice'}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            {search || statusFilter ? 'Coba ubah kata kunci atau reset filter status' : 'Buat invoice dari halaman detail client dengan status Deal'}
+          </p>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -87,7 +140,7 @@ export default function InvoicesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {invoices.map((inv) => (
+                {paginatedInvoices.map((inv) => (
                   <tr key={inv.id} className="hover:bg-gray-50/50">
                     <td className="px-4 py-3 text-xs font-semibold text-gray-900">
                       <Link to={`/invoices/${inv.invoiceNumber}`} className="hover:text-black">{inv.invoiceNumber}</Link>
@@ -123,7 +176,7 @@ export default function InvoicesPage() {
 
           {/* Mobile */}
           <div className="block md:hidden divide-y divide-gray-100">
-            {invoices.map((inv) => (
+            {paginatedInvoices.map((inv) => (
               <div key={inv.id} className="p-4">
                 <div className="flex items-center justify-between mb-1">
                   <Link to={`/invoices/${inv.invoiceNumber}`} className="text-sm font-semibold text-gray-900 hover:text-black">{inv.invoiceNumber}</Link>
@@ -139,6 +192,34 @@ export default function InvoicesPage() {
               </div>
             ))}
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+              <span className="text-xs text-gray-500 font-medium">
+                Menampilkan {((page - 1) * PAGE_SIZE) + 1} - {Math.min(page * PAGE_SIZE, filteredInvoices.length)} dari {filteredInvoices.length} data
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage((p) => Math.max(p - 1, 1))}
+                  disabled={page === 1}
+                  className="p-1.5 border border-gray-200 rounded-lg hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4 text-gray-600" />
+                </button>
+                <span className="px-3 text-xs font-semibold text-gray-700">
+                  {page} / {totalPages}
+                </span>
+                <button
+                  onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+                  disabled={page === totalPages}
+                  className="p-1.5 border border-gray-200 rounded-lg hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4 text-gray-600" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

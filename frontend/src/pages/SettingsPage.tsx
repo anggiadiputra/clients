@@ -28,6 +28,7 @@ import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-p
 import { useSettings } from '../contexts/SettingsContext';
 import { apiTestKirisan } from '../lib/api';
 import type { BankAccount } from '../lib/types';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 const PRIMARY_COLORS = [
   { label: 'Hitam', value: 'black' },
@@ -113,6 +114,7 @@ function EditButtons({ onSave, onCancel, saving, saveLabel = 'Simpan' }: { onSav
 }
 
 export default function SettingsPage() {
+  useDocumentTitle('Settings');
   const { settings, updateSettings, resetSettings, saving, error, lastSavedAt, clearError, loaded } = useSettings();
   const [logoInput, setLogoInput] = useState(settings.logo);
   const [projectName, setProjectName] = useState(settings.projectName);

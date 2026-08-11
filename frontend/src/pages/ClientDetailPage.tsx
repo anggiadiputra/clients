@@ -11,6 +11,7 @@ import InvoiceModal from '../components/InvoiceModal';
 import ConfirmModal from '../components/ConfirmModal';
 import { useSettings } from '../contexts/SettingsContext';
 import { getPrimaryClasses } from '../lib/colors';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 
@@ -20,6 +21,7 @@ export default function ClientDetailPage() {
   const { displayId } = useParams<{ displayId: string }>();
   const navigate = useNavigate();
   const [client, setClient] = useState<Client | null>(null);
+  useDocumentTitle(client ? client.name : 'Detail Pelanggan');
   const [loading, setLoading] = useState(true);
   const [noteText, setNoteText] = useState('');
   const [saving, setSaving] = useState(false);

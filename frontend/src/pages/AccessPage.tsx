@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Shield, Check, Loader2 } from 'lucide-react';
 import { useAccess, PAGE_KEYS, PAGE_LABELS, type PageKey } from '../contexts/AccessContext';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 const ROLES = ['ADMIN', 'STAFF', 'VIEWER'] as const;
 const ROLE_LABELS: Record<string, string> = {
@@ -10,6 +11,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export default function AccessPage() {
+  useDocumentTitle('Hak Akses');
   const { accesses, loading, setAccess } = useAccess();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);

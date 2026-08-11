@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, User, Mail, Lock, Building, ArrowRight, Loader2, CheckCircle2 } from 'lucide-react';
 import { BASE } from '../lib/api';
 
 export default function SetupPage() {
+  useEffect(() => { document.title = 'Setup Awal'; }, []);
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');

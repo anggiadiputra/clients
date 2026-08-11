@@ -4,6 +4,7 @@ import { Download, ArrowLeft, Settings2, CheckCircle2, XCircle, Trash2 } from 'l
 import { downloadInvoicePdf, updateInvoiceStatus, deleteInvoice as apiDeleteInvoice, fetchServices, BASE } from '../lib/api';
 import { INVOICE_STATUS_LABELS, INVOICE_STATUS_COLORS } from '../lib/types';
 import { useSettings } from '../contexts/SettingsContext';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import type { Invoice, ServiceItem } from '../lib/types';
 import InvoiceModal from '../components/InvoiceModal';
 import { format } from 'date-fns';
@@ -14,6 +15,7 @@ export default function InvoiceDetailPage() {
   const navigate = useNavigate();
   const { settings } = useSettings();
   const [invoice, setInvoice] = useState<(Invoice & { client?: { name: string; displayId: string; email?: string; whatsapp?: string; address?: string } }) | null>(null);
+  useDocumentTitle(invoice ? invoice.invoiceNumber : 'Detail Invoice');
   const [loading, setLoading] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
   const [services, setServices] = useState<ServiceItem[]>([]);

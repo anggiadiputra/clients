@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useSettings } from '../contexts/SettingsContext';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { apiResendOtp, apiForgotPassword, apiResetPassword } from '../lib/api';
 import { Globe, Mail, Lock, ArrowLeft, Eye, EyeOff, X, CheckCircle2 } from 'lucide-react';
 // Globe kept as fallback when settings.logo is empty
@@ -15,6 +16,7 @@ declare global {
 }
 
 export default function LoginPage() {
+  useDocumentTitle('Login');
   const [step, setStep] = useState<'password' | 'otp'>('password');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

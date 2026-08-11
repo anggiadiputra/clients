@@ -8,12 +8,14 @@ import { Link } from 'react-router-dom';
 import AddClientModal from '../components/AddClientModal';
 import { useSettings } from '../contexts/SettingsContext';
 import { getPrimaryClasses } from '../lib/colors';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 // Kanban pipeline: calon client → follow up. Begitu deal, pindah ke Pelanggan di /clients.
 const PIPELINE_STATUSES: Status[] = ['CALON_CLIENT', 'FOLLOW_UP'];
 const ACTIVE_CALON_STATUSES: Status[] = ['CALON_CLIENT', 'FOLLOW_UP'];
 
 export default function KanbanPage() {
+  useDocumentTitle('Calon Pelanggan');
   const { settings } = useSettings();
   const primaryClasses = getPrimaryClasses(settings.primaryColor);
   const [clients, setClients] = useState<Client[]>([]);

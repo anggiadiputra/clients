@@ -14,6 +14,7 @@ import ProjectDetailModal from '../components/projects/ProjectDetailModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { getPrimaryClasses } from '../lib/colors';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 function formatRupiah(v: string | number | null | undefined): string {
   if (v == null || v === '') return 'Rp 0';
@@ -23,6 +24,7 @@ function formatRupiah(v: string | number | null | undefined): string {
 }
 
 export default function ProjectsPage() {
+  useDocumentTitle('Proyek');
   const { user } = useAuth();
   const { settings } = useSettings();
   const primaryClasses = getPrimaryClasses(settings.primaryColor);
