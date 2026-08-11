@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
@@ -7,13 +8,12 @@ export default defineConfig({
     exclude: ['lucide-react'],
   },
   build: {
-    outDir: '../dist',
+    outDir: path.resolve(__dirname, '../dist'),
     emptyOutDir: true,
   },
   server: {
     proxy: {
       '/api': 'http://localhost:3003',
     },
-
   },
 })
