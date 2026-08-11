@@ -28,9 +28,16 @@ chown -R diurusin-apis:diurusin-apis /home/diurusin-apis/htdocs/apis.diurusin.id
 Jika user menanyakan perintah git pull / deployment Frontend (FE) untuk proyek ini, berikan perintah ini:
 
 ```bash
-cd /home/diurusin-crm/htdocs/crm.diurusin.id && git pull origin main && echo "VITE_API_URL=https://apis.diurusin.id" > .env && npm install && npm run build
+cd /home/diurusin-crm/htdocs/crm.diurusin.id && git pull origin main && su - diurusin-crm -c "cd /home/diurusin-crm/htdocs/crm.diurusin.id && echo 'VITE_API_URL=https://apis.diurusin.id' > .env && npm install && npm run build"
 ```
 
-**Catatan:**
-- FE adalah static files yang di-serve oleh webserver (nginx), file ownership root OK selama world-readable
+**Catatan penting:**
+- `git pull` dijalankan sebagai root (karena SSH key/credentials dikonfigurasi untuk root)
+- `npm install` dan `npm run build` dijalankan sebagai user `diurusin-crm` via `su -`
+- Ini mencegah file `dist/` ter-create dengan ownership root
 - Setelah build, clear Cloudflare cache jika halaman tidak update: Cloudflare Dashboard → Caching → Purge Everything
+
+Jika ada masalah permission (dist masih milik root), fix dulu:
+```bash
+chown -R diurusin-crm:diurusin-crm /home/diurusin-crm/htdocs/crm.diurusin.id/
+```
