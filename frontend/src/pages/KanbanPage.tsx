@@ -9,8 +9,8 @@ import AddClientModal from '../components/AddClientModal';
 import { useSettings } from '../contexts/SettingsContext';
 import { getPrimaryClasses } from '../lib/colors';
 
-// Kanban pipeline: calon client → follow up → deal (langsung masuk ke /clients saat deal).
-const PIPELINE_STATUSES: Status[] = ['CALON_CLIENT', 'FOLLOW_UP', 'DEAL'];
+// Kanban pipeline: calon client → follow up. Begitu deal, pindah ke Pelanggan di /clients.
+const PIPELINE_STATUSES: Status[] = ['CALON_CLIENT', 'FOLLOW_UP'];
 const ACTIVE_CALON_STATUSES: Status[] = ['CALON_CLIENT', 'FOLLOW_UP'];
 
 export default function KanbanPage() {
@@ -58,10 +58,7 @@ export default function KanbanPage() {
   }
 
   async function promoteToNext(clientId: number, currentStatus: Status) {
-    const idx = PIPELINE_STATUSES.indexOf(currentStatus);
-    if (idx < 0) return;
-    const nextStatus: Status = PIPELINE_STATUSES[idx + 1];
-    if (!nextStatus) return;
+    const nextStatus: Status = currentStatus === 'CALON_CLIENT' ? 'FOLLOW_UP' : 'DEAL';
 
     if (nextStatus === 'DEAL') {
       // Optimistically remove from Calon Pelanggan (moves to Pelanggan page)
@@ -120,7 +117,7 @@ export default function KanbanPage() {
         </div>
       ) : (
         <DragDropContext onDragEnd={onDragEnd}>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {PIPELINE_STATUSES.map((status) => (
               <Droppable key={status} droppableId={status}>
                 {(provided, snapshot) => (
