@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Building2, TrendingUp, Users, Clock, Banknote, Receipt, Wallet } from 'lucide-react';
 import { fetchClients, fetchProjects, fetchAllInvoices } from '../lib/api';
-import { STATUS_LABELS, STATUS_ORDER } from '../lib/types';
+import { STATUS_LABELS, STATUS_ORDER, INVOICE_STATUS_LABELS, INVOICE_STATUS_COLORS } from '../lib/types';
 import type { Client, Project, Invoice } from '../lib/types';
 import AddClientModal from '../components/AddClientModal';
 import { useAuth } from '../contexts/AuthContext';
@@ -97,7 +97,7 @@ export default function DashboardPage() {
           icon: Banknote,
           label: 'Pendapatan Admin',
           value: formatRp(adminRevenue),
-          color: adminRevenue < 0 ? 'bg-red-600' : 'bg-black',
+          color: adminRevenue < 0 ? 'bg-red-600' : primaryClasses.bg,
         },
       ]
     : [
@@ -140,11 +140,11 @@ export default function DashboardPage() {
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         {statCards.map(({ icon: Icon, label, value, color }) => (
-          <div key={label} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 flex items-center gap-4 hover:shadow-md transition-shadow">
-            <div className={`w-12 h-12 ${color} rounded-xl flex items-center justify-center shrink-0`}>
-              <Icon className="w-5.5 h-5.5 text-white" />
+          <div key={label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center gap-4">
+            <div className={`w-12 h-12 ${color} text-white rounded-xl flex items-center justify-center shrink-0`}>
+              <Icon className="w-6 h-6" />
             </div>
             <div>
               <p className="text-xs uppercase font-bold text-gray-400 tracking-wider">{label}</p>
@@ -154,28 +154,45 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Status Breakdown + Recent (admin only) */}
+      {/* Invoice Terakhir + Client Terbaru (admin only) */}
       {isAdmin && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Status breakdown */}
+        {/* Invoice Terakhir */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 md:p-6">
-          <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Per Status</h2>
-          <div className="space-y-3">
-            {STATUS_ORDER.map((s) => (
-              <div key={s} className="flex items-center justify-between">
-                <span className="text-sm text-gray-700">{STATUS_LABELS[s]}</span>
-                <div className="flex items-center gap-3">
-                  <div className="w-32 h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${primaryClasses.bg}`}
-                      style={{ width: clients.length ? `${((counts[s] || 0) / clients.length) * 100}%` : '0%' }}
-                    />
-                  </div>
-                  <span className="text-sm font-semibold text-gray-900 w-6 text-right">{counts[s] || 0}</span>
-                </div>
-              </div>
-            ))}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Invoice Terakhir</h2>
+            <Link to="/invoices" className={`text-xs font-semibold ${primaryClasses.text} hover:underline`}>
+              Lihat Semua
+            </Link>
           </div>
+          {invoices.length > 0 ? (
+            <div className="space-y-3">
+              {invoices.slice(0, 5).map((inv: any) => (
+                <div key={inv.id} className="flex items-center justify-between p-2.5 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                      <Receipt className="w-4 h-4 text-gray-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{inv.invoiceNumber}</p>
+                      <p className="text-xs text-gray-400 truncate">{inv.client?.name || inv.client?.displayId || '—'}</p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0 ml-3">
+                    <p className="text-xs font-bold text-gray-900">{formatRp(inv.total)}</p>
+                    <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${INVOICE_STATUS_COLORS[inv.status as keyof typeof INVOICE_STATUS_COLORS]}`}>
+                      {INVOICE_STATUS_LABELS[inv.status as keyof typeof INVOICE_STATUS_LABELS]}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Receipt className="w-10 h-10 mx-auto mb-2 text-gray-300" />
+              <p className="text-sm text-gray-400">Belum ada invoice</p>
+            </div>
+          )}
         </div>
 
         {/* Recent clients */}
