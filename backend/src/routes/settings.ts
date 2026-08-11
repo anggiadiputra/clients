@@ -18,7 +18,7 @@ const DEFAULTS: Record<string, string> = {
   logo: '',
   primaryColor: 'black',
   pageBackground: '#f0f2f5',
-  turnstileEnabled: 'true',
+  turnstileEnabled: 'false',
   turnstileSiteKey: '',
   turnstileSecretKey: '',
   fonnteToken: '',
