@@ -10,8 +10,8 @@ import { useSettings } from '../contexts/SettingsContext';
 import { getPrimaryClasses } from '../lib/colors';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
-// Kanban pipeline: calon client → follow up. Begitu deal, pindah ke Pelanggan di /clients.
-const PIPELINE_STATUSES: Status[] = ['CALON_CLIENT', 'FOLLOW_UP'];
+// Kanban pipeline: calon client → follow up → deal (pindah ke Pelanggan)
+const PIPELINE_STATUSES: Status[] = ['CALON_CLIENT', 'FOLLOW_UP', 'DEAL'];
 const ACTIVE_CALON_STATUSES: Status[] = ['CALON_CLIENT', 'FOLLOW_UP'];
 
 export default function KanbanPage() {
@@ -41,11 +41,11 @@ export default function KanbanPage() {
     const newStatus = destination.droppableId as Status;
     const clientId = parseInt(draggableId);
 
+    // Optimistically update list
     if (newStatus === 'DEAL') {
       // Optimistically remove from Calon Pelanggan (moves to Pelanggan page)
       setClients((prev) => prev.filter((c) => c.id !== clientId));
     } else {
-      // Optimistic update within Calon Pelanggan
       setClients((prev) =>
         prev.map((c) => (c.id === clientId ? { ...c, status: newStatus } : c))
       );
@@ -119,27 +119,36 @@ export default function KanbanPage() {
         </div>
       ) : (
         <DragDropContext onDragEnd={onDragEnd}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {PIPELINE_STATUSES.map((status) => (
               <Droppable key={status} droppableId={status}>
                 {(provided, snapshot) => (
                   <div
                     ref={provided.innerRef}
                     {...provided.droppableProps}
-                    className={`bg-white rounded-xl border border-gray-200 shadow-sm p-3 min-h-[200px] transition-colors ${
-                      snapshot.isDraggingOver ? 'bg-gray-50 border-gray-300' : ''
+                    className={`bg-white rounded-xl border border-gray-200 shadow-sm p-3 min-h-[220px] flex flex-col justify-between transition-colors ${
+                      snapshot.isDraggingOver ? 'bg-emerald-50/50 border-emerald-300' : ''
                     }`}
                   >
                     <div className="flex items-center justify-between mb-3 px-1">
                       <span
-                        className={`px-2 py-0.5 rounded-full text-xs font-bold border ${STATUS_COLORS[status]}`}
+                        className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${STATUS_COLORS[status]}`}
                       >
-                        {STATUS_LABELS[status]}
+                        {status === 'DEAL' ? '🤝 Deal (Pindah ke Pelanggan)' : STATUS_LABELS[status]}
                       </span>
                       <span className="text-xs font-bold text-gray-400">
                         {clientsByStatus(status).length}
                       </span>
                     </div>
+
+                    {status === 'DEAL' && clientsByStatus(status).length === 0 && (
+                      <div className="border-2 border-dashed border-emerald-200 rounded-xl p-4 text-center my-auto bg-emerald-50/30">
+                        <p className="text-xs font-semibold text-emerald-700 mb-1">🎯 Geser Ke Sini Jika Deal</p>
+                        <p className="text-[11px] text-emerald-600/80 leading-relaxed">
+                          Client akan otomatis dipindahkan dari sini ke halaman <span className="font-bold underline">Pelanggan</span>.
+                        </p>
+                      </div>
+                    )}
 
                     <div className="space-y-2">
                       {clientsByStatus(status).map((client, index) => (
