@@ -135,16 +135,19 @@ export default function AddClientModal({ open, onClose, onCreated, defaultStatus
               onChange={(e) => update('status', e.target.value)}
               className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800 bg-white"
             >
-              <optgroup label="💼 Pelanggan (Sudah / Sedang Kerja Sama)">
-                <option value="KERJAKAN">Sedang Dikerjakan</option>
-                <option value="SELESAI">Selesai Kerja Sama</option>
-                <option value="MASA_GARANSI">Masa Garansi</option>
-                <option value="DEAL">Deal</option>
-              </optgroup>
-              <optgroup label="🎯 Calon Pelanggan (Belum Kerja Sama)">
-                <option value="CALON_CLIENT">Calon Client (Prospek Baru)</option>
-                <option value="FOLLOW_UP">Follow Up</option>
-              </optgroup>
+              {['CALON_CLIENT', 'FOLLOW_UP'].includes(defaultStatus) ? (
+                <>
+                  <option value="CALON_CLIENT">Prospek Baru (Calon Client)</option>
+                  <option value="FOLLOW_UP">Follow Up</option>
+                </>
+              ) : (
+                <>
+                  <option value="KERJAKAN">Sedang Dikerjakan</option>
+                  <option value="DEAL">Deal</option>
+                  <option value="MASA_GARANSI">Masa Garansi</option>
+                  <option value="SELESAI">Selesai</option>
+                </>
+              )}
             </select>
           </div>
 
