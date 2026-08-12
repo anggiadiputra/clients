@@ -34,8 +34,12 @@ router.post('/', async (req: Request, res: Response) => {
       res.status(400).json({ error: 'Email dan password wajib diisi' });
       return;
     }
-    if (password.length < 6) {
-      res.status(400).json({ error: 'Password minimal 6 karakter' });
+    if (password.length < 8) {
+      res.status(400).json({ error: 'Password minimal 8 karakter' });
+      return;
+    }
+    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      res.status(400).json({ error: 'Password harus mengombinasikan huruf dan angka' });
       return;
     }
     if (role && !VALID_ROLES.includes(role)) {
@@ -141,8 +145,12 @@ router.post('/:id/reset-password', async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id as string);
     const { newPassword } = req.body;
-    if (!newPassword || newPassword.length < 6) {
-      res.status(400).json({ error: 'Password baru minimal 6 karakter' });
+    if (!newPassword || newPassword.length < 8) {
+      res.status(400).json({ error: 'Password baru minimal 8 karakter' });
+      return;
+    }
+    if (!/[a-zA-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      res.status(400).json({ error: 'Password baru harus mengombinasikan huruf dan angka' });
       return;
     }
 

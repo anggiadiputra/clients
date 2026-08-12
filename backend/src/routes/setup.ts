@@ -31,8 +31,12 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Nama, email, dan password wajib diisi.' });
     }
 
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Password minimal 6 karakter.' });
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password minimal 8 karakter.' });
+    }
+
+    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      return res.status(400).json({ error: 'Password harus mengombinasikan huruf dan angka.' });
     }
 
     // 1. Hash password & create primary Admin user

@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import clientsRouter from './routes/clients';
 import invoicesRouter from './routes/invoices';
 import settingsRouter from './routes/settings';
@@ -14,13 +15,27 @@ import setupRouter from './routes/setup';
 import { requireAuth } from './middleware/auth';
 import { requirePageAccess } from './lib/rbac';
 import prisma from './lib/prisma';
+import { ALLOWED_ORIGINS } from './lib/config';
 
 const app = express();
-app.set('trust proxy', true);
+app.disable('x-powered-by');
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow cross-origin assets (e.g. S3 uploads)
+}));
+
+// Trust 1 reverse proxy (e.g. Nginx/Cloudflare) in front of the Node app
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
 
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    // Allow non-browser requests (no origin header, e.g. server-to-server or mobile apps)
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Blocked by CORS origin policy'));
+    }
+  },
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
