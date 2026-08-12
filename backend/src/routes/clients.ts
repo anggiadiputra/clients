@@ -43,9 +43,9 @@ router.get('/', async (req: Request, res: Response) => {
     });
 
     res.json(clientsResponse(clients));
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch clients' });
+  } catch (error: any) {
+    console.error('Error in GET /api/clients:', error);
+    res.status(500).json({ error: error?.message || 'Failed to fetch clients' });
   }
 });
 
