@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "npx prisma generate && tsc -p tsconfig.json",
+    "build": "npx prisma generate --schema=../prisma/schema.prisma && tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "seed": "tsx src/seed.ts",
     "prisma:gen": "npx prisma generate"
@@ -24,7 +24,7 @@
     "xlsx": "^0.18.5"
   },
   "prisma": {
-    "schema": "prisma/schema.prisma",
+    "schema": "../prisma/schema.prisma",
     "seed": "tsx src/seed.ts"
   },
   "devDependencies": {
