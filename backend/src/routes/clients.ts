@@ -21,7 +21,8 @@ router.get('/', async (req: Request, res: Response) => {
     } else if (typeof status === 'string' && status) {
       statusList = status.split(',');
     }
-    statusList = statusList.map((s) => s.trim()).filter(Boolean);
+    const VALID_STATUSES = ['CALON_CLIENT', 'FOLLOW_UP', 'DEAL', 'KERJAKAN', 'MASA_GARANSI', 'SELESAI'];
+    statusList = statusList.map((s) => s.trim()).filter((s) => VALID_STATUSES.includes(s));
 
     const where: any = {};
     if (search && typeof search === 'string') {
