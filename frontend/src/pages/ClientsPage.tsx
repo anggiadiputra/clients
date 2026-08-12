@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Plus, Building2, Mail, Phone, Globe, MapPin, ChevronLeft, ChevronRight, MessageSquare, Download, BadgeCheck, XCircle } from 'lucide-react';
 import { fetchClients, exportClientsXlsx } from '../lib/api';
-import { STATUS_LABELS, STATUS_COLORS, type Status, type Client } from '../lib/types';
+import { type Status, type Client } from '../lib/types';
 import AddClientModal from '../components/AddClientModal';
 import { useSettings } from '../contexts/SettingsContext';
 import { getPrimaryClasses } from '../lib/colors';
@@ -126,7 +126,6 @@ export default function ClientsPage() {
                 <tr className="bg-gray-50 border-b border-gray-100">
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Nama Usaha</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">ID</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Email</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">WhatsApp</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Website</th>
@@ -146,11 +145,6 @@ export default function ClientsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-xs font-bold text-gray-400 font-mono">{client.displayId}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${STATUS_COLORS[client.status] || 'bg-gray-50 text-gray-600 border-gray-200'}`}>
-                        {STATUS_LABELS[client.status] || client.status}
-                      </span>
-                    </td>
                     <td className="px-4 py-3 text-xs text-gray-600 truncate max-w-[180px]">{client.email || '-'}</td>
                     <td className="px-4 py-3 text-xs text-gray-600">
                       {client.whatsapp ? (
@@ -182,7 +176,7 @@ export default function ClientsPage() {
           <div className="block md:hidden divide-y divide-gray-100">
             {paginated.map((client) => (
               <div key={client.id} className="p-4 hover:bg-gray-50/50 transition-colors space-y-3">
-                {/* Header: Name, Display ID, Status */}
+                {/* Header: Name, Display ID */}
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <Link to={`/clients/${client.displayId}`} className="text-sm font-bold text-gray-900 hover:underline block break-words">
@@ -199,9 +193,6 @@ export default function ClientsPage() {
                       )}
                     </div>
                   </div>
-                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border shrink-0 ${STATUS_COLORS[client.status] || 'bg-gray-50 text-gray-600 border-gray-200'}`}>
-                    {STATUS_LABELS[client.status] || client.status}
-                  </span>
                 </div>
 
                 {/* Info List */}
