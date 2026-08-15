@@ -3,6 +3,8 @@ import {
   ArrowLeft,
   Upload,
   X,
+  Check,
+  Pencil,
   CheckCircle2,
   GripVertical,
   Plus,
@@ -175,6 +177,12 @@ export default function SettingsPage() {
   const [editingKirisan, setEditingKirisan] = useState(false);
   const [editingS3, setEditingS3] = useState(false);
 
+  // State untuk edit per-rekening
+  const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
+  const [editBankName, setEditBankName] = useState('');
+  const [editAccountNumber, setEditAccountNumber] = useState('');
+  const [editAccountHolder, setEditAccountHolder] = useState('');
+
   // Sync local form states when context settings hydrate or update from server
   useEffect(() => {
     if (!editingTampilan) {
@@ -242,6 +250,7 @@ export default function SettingsPage() {
     setNewBank('');
     setNewNumber('');
     setNewHolder('');
+    setEditingAccountId(null);
     setEditingRekening(false);
   }
   function cancelSk() {
@@ -302,7 +311,32 @@ export default function SettingsPage() {
     setNewHolder('');
   }
 
+  function handleStartEditBank(acc: BankAccount) {
+    setEditingAccountId(acc.id);
+    setEditBankName(acc.bankName);
+    setEditAccountNumber(acc.accountNumber);
+    setEditAccountHolder(acc.accountHolder || '');
+  }
+
+  function handleSaveEditBank(id: string) {
+    if (!editBankName.trim() || !editAccountNumber.trim()) return;
+    setBankAccounts((prev) =>
+      prev.map((acc) =>
+        acc.id === id
+          ? {
+              ...acc,
+              bankName: editBankName.trim(),
+              accountNumber: editAccountNumber.trim(),
+              accountHolder: editAccountHolder.trim(),
+            }
+          : acc
+      )
+    );
+    setEditingAccountId(null);
+  }
+
   function handleDeleteBank(id: string) {
+    if (editingAccountId === id) setEditingAccountId(null);
     setBankAccounts((prev) => prev.filter((a) => a.id !== id));
   }
 
@@ -675,28 +709,102 @@ export default function SettingsPage() {
                                 <GripVertical className="w-4 h-4" />
                               </div>
                               <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-3 gap-1 sm:gap-2 text-xs">
-                                <div>
-                                  <span className="text-[10px] text-gray-400 block font-bold uppercase">Bank</span>
-                                  <span className="font-semibold text-gray-900 truncate block">{acc.bankName}</span>
-                                </div>
-                                <div>
-                                  <span className="text-[10px] text-gray-400 block font-bold uppercase">No. Rekening</span>
-                                  <span className="font-mono font-semibold text-gray-800 truncate block">{acc.accountNumber}</span>
-                                </div>
-                                <div>
-                                  <span className="text-[10px] text-gray-400 block font-bold uppercase">Atas Nama</span>
-                                  <span className="text-gray-700 truncate block">{acc.accountHolder || '-'}</span>
-                                </div>
+                                {editingAccountId === acc.id ? (
+                                  <>
+                                    <div>
+                                      <span className="text-[10px] text-gray-400 block font-bold uppercase mb-0.5">Bank</span>
+                                      <input
+                                        type="text"
+                                        value={editBankName}
+                                        onChange={(e) => setEditBankName(e.target.value)}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-black"
+                                        placeholder="Bank (misal: BCA)"
+                                      />
+                                    </div>
+                                    <div>
+                                      <span className="text-[10px] text-gray-400 block font-bold uppercase mb-0.5">No. Rekening</span>
+                                      <input
+                                        type="text"
+                                        value={editAccountNumber}
+                                        onChange={(e) => setEditAccountNumber(e.target.value)}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-gray-900 font-mono focus:outline-none focus:ring-1 focus:ring-black"
+                                        placeholder="Nomor Rekening"
+                                      />
+                                    </div>
+                                    <div>
+                                      <span className="text-[10px] text-gray-400 block font-bold uppercase mb-0.5">Atas Nama</span>
+                                      <input
+                                        type="text"
+                                        value={editAccountHolder}
+                                        onChange={(e) => setEditAccountHolder(e.target.value)}
+                                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-black"
+                                        placeholder="Atas Nama"
+                                      />
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div>
+                                      <span className="text-[10px] text-gray-400 block font-bold uppercase">Bank</span>
+                                      <span className="font-semibold text-gray-900 truncate block">{acc.bankName}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-[10px] text-gray-400 block font-bold uppercase">No. Rekening</span>
+                                      <span className="font-mono font-semibold text-gray-800 truncate block">{acc.accountNumber}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-[10px] text-gray-400 block font-bold uppercase">Atas Nama</span>
+                                      <span className="text-gray-700 truncate block">{acc.accountHolder || '-'}</span>
+                                    </div>
+                                  </>
+                                )}
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteBank(acc.id)}
-                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors shrink-0"
-                                title="Hapus Rekening"
-                                aria-label={`Hapus rekening ${acc.bankName}`}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {editingAccountId === acc.id ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSaveEditBank(acc.id)}
+                                      disabled={!editBankName.trim() || !editAccountNumber.trim()}
+                                      className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors disabled:opacity-40"
+                                      title="Simpan Rekening"
+                                      aria-label={`Simpan rekening ${acc.bankName}`}
+                                    >
+                                      <Check className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingAccountId(null)}
+                                      className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                                      title="Batal Edit"
+                                      aria-label="Batal edit rekening"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartEditBank(acc)}
+                                      className="p-1.5 text-gray-400 hover:text-black hover:bg-gray-200/60 rounded transition-colors"
+                                      title="Edit Rekening"
+                                      aria-label={`Edit rekening ${acc.bankName}`}
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteBank(acc.id)}
+                                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                      title="Hapus Rekening"
+                                      aria-label={`Hapus rekening ${acc.bankName}`}
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
                             </div>
                           )}
                         </Draggable>

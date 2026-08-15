@@ -27,6 +27,8 @@ export default function LoginPage() {
   const [countdown, setCountdown] = useState(0);
   const turnstileRef = useRef<string | null>(null);
   const turnstileForgotRef = useRef<string | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileForgotToken, setForgotTurnstileToken] = useState<string | null>(null);
 
   // Lupa Password state
   const [showForgotModal, setShowForgotModal] = useState(false);
@@ -48,12 +50,14 @@ export default function LoginPage() {
     try {
       const res = await apiForgotPassword(forgotEmail, turnstileForgotRef.current || undefined);
       turnstileForgotRef.current = null;
+      setForgotTurnstileToken(null);
       try { window.turnstile?.reset?.('#turnstile-forgot-widget'); } catch {}
       setForgotMsg(res.message);
       setForgotStep('reset');
     } catch (err: any) {
       setForgotErr(err.message || 'Gagal mengirim OTP reset password');
       turnstileForgotRef.current = null;
+      setForgotTurnstileToken(null);
       try { window.turnstile?.reset?.('#turnstile-forgot-widget'); } catch {}
     } finally {
       setForgotLoading(false);
@@ -117,11 +121,18 @@ export default function LoginPage() {
           window.turnstile.render('#turnstile-widget', {
             sitekey: siteKey,
             theme: 'light',
-            callback: (token: string) => { turnstileRef.current = token; },
-            'expired-callback': () => { turnstileRef.current = null; },
+            callback: (token: string) => {
+              turnstileRef.current = token;
+              setTurnstileToken(token);
+            },
+            'expired-callback': () => {
+              turnstileRef.current = null;
+              setTurnstileToken(null);
+            },
             'error-callback': (err: any) => {
               console.error('Turnstile widget error:', err);
               turnstileRef.current = null;
+              setTurnstileToken(null);
             },
           });
         } catch (e) {
@@ -176,11 +187,18 @@ export default function LoginPage() {
           window.turnstile.render('#turnstile-forgot-widget', {
             sitekey: siteKey,
             theme: 'light',
-            callback: (token: string) => { turnstileForgotRef.current = token; },
-            'expired-callback': () => { turnstileForgotRef.current = null; },
+            callback: (token: string) => {
+              turnstileForgotRef.current = token;
+              setForgotTurnstileToken(token);
+            },
+            'expired-callback': () => {
+              turnstileForgotRef.current = null;
+              setForgotTurnstileToken(null);
+            },
             'error-callback': (err: any) => {
               console.error('Turnstile forgot widget error:', err);
               turnstileForgotRef.current = null;
+              setForgotTurnstileToken(null);
             },
           });
         } catch (e) {
@@ -228,11 +246,13 @@ export default function LoginPage() {
       await loginStep1(email, password, turnstileRef.current || undefined);
       // Reset Turnstile token — it is one-shot
       turnstileRef.current = null;
+      setTurnstileToken(null);
       try { window.turnstile?.reset?.('#turnstile-widget'); } catch {}
       setStep('otp');
     } catch (err: any) {
       setError(err.message || 'Login gagal');
       turnstileRef.current = null;
+      setTurnstileToken(null);
       try { window.turnstile?.reset?.('#turnstile-widget'); } catch {}
     } finally {
       setLoading(false);
@@ -349,7 +369,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading || !email || !password || (isTurnstileActive && !turnstileRef.current)}
+              disabled={loading || !email || !password || (isTurnstileActive && !turnstileToken)}
               className="w-full px-4 py-2.5 bg-black text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
             >
               {loading ? 'Memeriksa...' : 'Lanjut'}
@@ -456,7 +476,7 @@ export default function LoginPage() {
                 )}
                 <button
                   type="submit"
-                  disabled={forgotLoading || !forgotEmail || (isTurnstileActive && !turnstileForgotRef.current)}
+                  disabled={forgotLoading || !forgotEmail || (isTurnstileActive && !turnstileForgotToken)}
                   className="w-full px-4 py-2.5 bg-black text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
                 >
                   {forgotLoading ? 'Mengirim OTP...' : 'Kirim Kode OTP'}
