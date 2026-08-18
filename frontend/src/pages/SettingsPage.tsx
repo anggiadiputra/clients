@@ -28,7 +28,7 @@ import { Link } from 'react-router-dom';
 
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import { useSettings } from '../contexts/SettingsContext';
-import { apiTestKirisan } from '../lib/api';
+import { apiTestKirisan, apiTestBrevo } from '../lib/api';
 import type { BankAccount } from '../lib/types';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
@@ -149,6 +149,7 @@ export default function SettingsPage() {
   const [fonnteTesting, setFonnteTesting] = useState(false);
   const [fonnteTestResult, setFonnteTestResult] = useState<string | null>(null);
 
+  const [emailProvider, setEmailProvider] = useState(settings.emailProvider || 'kirisan');
   const [kirisanToken, setKirisanToken] = useState(settings.kirisanToken);
   const [showKirisanToken, setShowKirisanToken] = useState(false);
   const [kirisanChannelKey, setKirisanChannelKey] = useState(settings.kirisanChannelKey);
@@ -159,6 +160,15 @@ export default function SettingsPage() {
   const [kirisanTestEmail, setKirisanTestEmail] = useState('');
   const [kirisanTesting, setKirisanTesting] = useState(false);
   const [kirisanTestResult, setKirisanTestResult] = useState<string | null>(null);
+
+  const [brevoApiKey, setBrevoApiKey] = useState(settings.brevoApiKey);
+  const [showBrevoApiKey, setShowBrevoApiKey] = useState(false);
+  const [brevoSenderEmail, setBrevoSenderEmail] = useState(settings.brevoSenderEmail);
+  const [brevoSenderName, setBrevoSenderName] = useState(settings.brevoSenderName);
+  const [brevoTemplateId, setBrevoTemplateId] = useState(settings.brevoTemplateId);
+  const [brevoTestEmail, setBrevoTestEmail] = useState('');
+  const [brevoTesting, setBrevoTesting] = useState(false);
+  const [brevoTestResult, setBrevoTestResult] = useState<string | null>(null);
 
   const [s3Endpoint, setS3Endpoint] = useState(settings.s3Endpoint);
   const [s3Region, setS3Region] = useState(settings.s3Region);
@@ -211,11 +221,16 @@ export default function SettingsPage() {
       setFonnteToken(settings.fonnteToken);
     }
     if (!editingKirisan) {
+      setEmailProvider(settings.emailProvider || 'kirisan');
       setKirisanToken(settings.kirisanToken);
       setKirisanChannelKey(settings.kirisanChannelKey);
       setKirisanLoginOtpTemplateId(settings.kirisanLoginOtpTemplateId);
       setKirisanRegisterOtpTemplateId(settings.kirisanRegisterOtpTemplateId);
       setKirisanResetPasswordTemplateId(settings.kirisanResetPasswordTemplateId);
+      setBrevoApiKey(settings.brevoApiKey);
+      setBrevoSenderEmail(settings.brevoSenderEmail);
+      setBrevoSenderName(settings.brevoSenderName);
+      setBrevoTemplateId(settings.brevoTemplateId);
     }
     if (!editingS3) {
       setS3Endpoint(settings.s3Endpoint);
@@ -269,6 +284,7 @@ export default function SettingsPage() {
     setEditingFonnte(false);
   }
   function cancelKirisan() {
+    setEmailProvider(settings.emailProvider || 'kirisan');
     setKirisanToken(settings.kirisanToken);
     setShowKirisanToken(false);
     setKirisanChannelKey(settings.kirisanChannelKey);
@@ -276,6 +292,11 @@ export default function SettingsPage() {
     setKirisanLoginOtpTemplateId(settings.kirisanLoginOtpTemplateId);
     setKirisanRegisterOtpTemplateId(settings.kirisanRegisterOtpTemplateId);
     setKirisanResetPasswordTemplateId(settings.kirisanResetPasswordTemplateId);
+    setBrevoApiKey(settings.brevoApiKey);
+    setShowBrevoApiKey(false);
+    setBrevoSenderEmail(settings.brevoSenderEmail);
+    setBrevoSenderName(settings.brevoSenderName);
+    setBrevoTemplateId(settings.brevoTemplateId);
     setEditingKirisan(false);
   }
   function cancelS3() {
@@ -369,6 +390,27 @@ export default function SettingsPage() {
       setKirisanTesting(false);
     }
   }
+
+  async function handleTestBrevo() {
+    if (!brevoTestEmail) return;
+    setBrevoTesting(true);
+    setBrevoTestResult(null);
+    try {
+      const res = await apiTestBrevo({
+        recipient_email: brevoTestEmail,
+        brevo_api_key: brevoApiKey,
+        brevo_sender_email: brevoSenderEmail,
+        brevo_sender_name: brevoSenderName,
+        brevo_template_id: brevoTemplateId,
+      });
+      setBrevoTestResult(`✅ ${res.message}`);
+    } catch (err: any) {
+      setBrevoTestResult(`❌ ${err.message || 'Gagal koneksi ke Brevo API'}`);
+    } finally {
+      setBrevoTesting(false);
+    }
+  }
+
 
   async function handleTestFonnte() {
     if (!fonnteToken || !fonnteTestPhone) return;
@@ -1075,132 +1117,287 @@ export default function SettingsPage() {
           )}
         </div>
 
-        {/* 7. Kirisan Email & OTP */}
+        {/* 7. Kirim Email & OTP Gateway (Kirisan / Brevo) */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 md:p-6">
           <CardHeader
             icon={<Mail className="w-4 h-4" />}
             iconBg="bg-pink-50"
             iconColor="text-pink-600"
-            title="Kirisan Email & OTP"
-            subtitle="Gateway email untuk OTP login & reset password"
+            title="Kirim Email & OTP"
+            subtitle="Gateway email untuk OTP login & reset password (Kirisan / Brevo)"
           />
           {!editingKirisan ? (
             <div className="space-y-4">
               <div>
-                <p className="text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Account Token</p>
-                <MaskedValue value={settings.kirisanToken} revealed={showKirisanToken} onToggle={() => setShowKirisanToken((v) => !v)} />
+                <p className="text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Provider Aktif</p>
+                <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-200">
+                  {(settings.emailProvider || 'kirisan') === 'brevo' ? 'Brevo API (Sendinblue)' : 'Kirisan API'}
+                </span>
               </div>
-              <div>
-                <p className="text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Channel Key (Email)</p>
-                <MaskedValue value={settings.kirisanChannelKey} revealed={showKirisanChannelKey} onToggle={() => setShowKirisanChannelKey((v) => !v)} />
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <p className="text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Login OTP</p>
-                  <p className="text-sm font-mono text-gray-900">{settings.kirisanLoginOtpTemplateId || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Reset Password</p>
-                  <p className="text-sm font-mono text-gray-900">{settings.kirisanResetPasswordTemplateId || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Register OTP</p>
-                  <p className="text-sm font-mono text-gray-900">{settings.kirisanRegisterOtpTemplateId || '-'}</p>
-                </div>
-              </div>
-              <div className="pt-3 border-t border-gray-100 space-y-3">
-                <p className="text-xs text-gray-500">Uji coba pengiriman email OTP via Kirisan API</p>
-                <div className="flex gap-2">
-                  <input
-                    type="email"
-                    value={kirisanTestEmail}
-                    onChange={(e) => setKirisanTestEmail(e.target.value)}
-                    className="flex-1 px-3.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800"
-                    placeholder="email.tujuan@example.com"
-                  />
-                  <button
-                    onClick={handleTestKirisan}
-                    disabled={kirisanTesting || !kirisanTestEmail || !settings.kirisanToken || !settings.kirisanChannelKey}
-                    className="px-4 py-2 border border-gray-200 hover:bg-gray-50 text-sm font-semibold rounded-lg text-gray-700 transition-colors disabled:opacity-50"
-                  >
-                    {kirisanTesting ? 'Mengirim...' : 'Uji Koneksi Kirisan'}
-                  </button>
-                </div>
-                {kirisanTestResult && (
-                  <p className={`text-xs font-medium ${kirisanTestResult.startsWith('✅') ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {kirisanTestResult}
-                  </p>
-                )}
-              </div>
+
+              {(settings.emailProvider || 'kirisan') === 'brevo' ? (
+                <>
+                  <div>
+                    <p className="text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Brevo API Key</p>
+                    <MaskedValue value={settings.brevoApiKey} revealed={showBrevoApiKey} onToggle={() => setShowBrevoApiKey((v) => !v)} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Email Pengirim</p>
+                      <p className="text-sm font-semibold text-gray-900">{settings.brevoSenderEmail || settings.senderEmail || <span className="text-gray-400 italic font-normal">Sesuai Info Pengirim</span>}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Nama Pengirim</p>
+                      <p className="text-sm font-semibold text-gray-900">{settings.brevoSenderName || settings.senderName || <span className="text-gray-400 italic font-normal">Sesuai Info Pengirim</span>}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Template ID (Opsional)</p>
+                    <p className="text-sm font-mono text-gray-900">{settings.brevoTemplateId || <span className="text-gray-400 italic font-normal">HTML Standar (Tanpa Template ID)</span>}</p>
+                  </div>
+                  <div className="pt-3 border-t border-gray-100 space-y-3">
+                    <p className="text-xs text-gray-500">Uji coba pengiriman email OTP via Brevo API</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="email"
+                        value={brevoTestEmail}
+                        onChange={(e) => setBrevoTestEmail(e.target.value)}
+                        className="flex-1 px-3.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800"
+                        placeholder="email.tujuan@example.com"
+                      />
+                      <button
+                        onClick={handleTestBrevo}
+                        disabled={brevoTesting || !brevoTestEmail || !settings.brevoApiKey}
+                        className="px-4 py-2 border border-gray-200 hover:bg-gray-50 text-sm font-semibold rounded-lg text-gray-700 transition-colors disabled:opacity-50"
+                      >
+                        {brevoTesting ? 'Mengirim...' : 'Uji Koneksi Brevo'}
+                      </button>
+                    </div>
+                    {brevoTestResult && (
+                      <p className={`text-xs font-medium ${brevoTestResult.startsWith('✅') ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {brevoTestResult}
+                      </p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <p className="text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Account Token</p>
+                    <MaskedValue value={settings.kirisanToken} revealed={showKirisanToken} onToggle={() => setShowKirisanToken((v) => !v)} />
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Channel Key (Email)</p>
+                    <MaskedValue value={settings.kirisanChannelKey} revealed={showKirisanChannelKey} onToggle={() => setShowKirisanChannelKey((v) => !v)} />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <p className="text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Login OTP</p>
+                      <p className="text-sm font-mono text-gray-900">{settings.kirisanLoginOtpTemplateId || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Reset Password</p>
+                      <p className="text-sm font-mono text-gray-900">{settings.kirisanResetPasswordTemplateId || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Register OTP</p>
+                      <p className="text-sm font-mono text-gray-900">{settings.kirisanRegisterOtpTemplateId || '-'}</p>
+                    </div>
+                  </div>
+                  <div className="pt-3 border-t border-gray-100 space-y-3">
+                    <p className="text-xs text-gray-500">Uji coba pengiriman email OTP via Kirisan API</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="email"
+                        value={kirisanTestEmail}
+                        onChange={(e) => setKirisanTestEmail(e.target.value)}
+                        className="flex-1 px-3.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800"
+                        placeholder="email.tujuan@example.com"
+                      />
+                      <button
+                        onClick={handleTestKirisan}
+                        disabled={kirisanTesting || !kirisanTestEmail || !settings.kirisanToken || !settings.kirisanChannelKey}
+                        className="px-4 py-2 border border-gray-200 hover:bg-gray-50 text-sm font-semibold rounded-lg text-gray-700 transition-colors disabled:opacity-50"
+                      >
+                        {kirisanTesting ? 'Mengirim...' : 'Uji Koneksi Kirisan'}
+                      </button>
+                    </div>
+                    {kirisanTestResult && (
+                      <p className={`text-xs font-medium ${kirisanTestResult.startsWith('✅') ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {kirisanTestResult}
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+
               <button
                 onClick={() => setEditingKirisan(true)}
                 className="w-full px-4 py-2.5 bg-black text-white text-sm font-semibold rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
               >
-                <Settings2 className="w-4 h-4" /> Ubah Kirisan
+                <Settings2 className="w-4 h-4" /> Ubah Konfigurasi Email
               </button>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div>
-                <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Account Token</label>
-                <div className="relative">
-                  <input
-                    type={showKirisanToken ? 'text' : 'password'}
-                    value={kirisanToken}
-                    onChange={(e) => setKirisanToken(e.target.value)}
-                    className="w-full pl-3.5 pr-10 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800"
-                    placeholder="Bearer token Kirisan API"
-                  />
+                <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-2">Pilih Provider Email</label>
+                <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={() => setShowKirisanToken(!showKirisanToken)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    onClick={() => setEmailProvider('kirisan')}
+                    className={`px-4 py-2.5 rounded-lg border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                      emailProvider === 'kirisan'
+                        ? 'border-black bg-black text-white shadow-sm'
+                        : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
                   >
-                    {showKirisanToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    Kirisan API
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEmailProvider('brevo')}
+                    className={`px-4 py-2.5 rounded-lg border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                      emailProvider === 'brevo'
+                        ? 'border-black bg-black text-white shadow-sm'
+                        : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    Brevo API (Sendinblue)
                   </button>
                 </div>
               </div>
-              <div>
-                <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Channel Key (Email)</label>
-                <div className="relative">
-                  <input
-                    type={showKirisanChannelKey ? 'text' : 'password'}
-                    value={kirisanChannelKey}
-                    onChange={(e) => setKirisanChannelKey(e.target.value)}
-                    className="w-full pl-3.5 pr-10 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800"
-                    placeholder="Channel token Kirisan Email"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowKirisanChannelKey(!showKirisanChannelKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showKirisanChannelKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+
+              {emailProvider === 'brevo' ? (
+                <div className="space-y-3 pt-2 border-t border-gray-100">
+                  <div>
+                    <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Brevo API Key</label>
+                    <div className="relative">
+                      <input
+                        type={showBrevoApiKey ? 'text' : 'password'}
+                        value={brevoApiKey}
+                        onChange={(e) => setBrevoApiKey(e.target.value)}
+                        className="w-full pl-3.5 pr-10 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800"
+                        placeholder="xkeysib-..."
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowBrevoApiKey(!showBrevoApiKey)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showBrevoApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Email Pengirim</label>
+                      <input
+                        type="email"
+                        value={brevoSenderEmail}
+                        onChange={(e) => setBrevoSenderEmail(e.target.value)}
+                        className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800"
+                        placeholder="info@diurusin.id (Opsional)"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Nama Pengirim</label>
+                      <input
+                        type="text"
+                        value={brevoSenderName}
+                        onChange={(e) => setBrevoSenderName(e.target.value)}
+                        className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800"
+                        placeholder="Client CRM (Opsional)"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Brevo Template ID (Opsional)</label>
+                    <input
+                      type="text"
+                      value={brevoTemplateId}
+                      onChange={(e) => setBrevoTemplateId(e.target.value)}
+                      className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800"
+                      placeholder="Kosongkan jika ingin menggunakan format HTML bawaan"
+                    />
+                  </div>
                 </div>
-              </div>
-              <div>
-                <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Login OTP Template ID</label>
-                <input type="text" value={kirisanLoginOtpTemplateId} onChange={(e) => setKirisanLoginOtpTemplateId(e.target.value)}
-                  className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800"
-                  placeholder="Contoh: 123" />
-              </div>
-              <div>
-                <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Reset Password OTP Template ID</label>
-                <input type="text" value={kirisanResetPasswordTemplateId} onChange={(e) => setKirisanResetPasswordTemplateId(e.target.value)}
-                  className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800"
-                  placeholder="Contoh: 124" />
-              </div>
-              <div>
-                <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Register OTP Template ID</label>
-                <input type="text" value={kirisanRegisterOtpTemplateId} onChange={(e) => setKirisanRegisterOtpTemplateId(e.target.value)}
-                  className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800"
-                  placeholder="Contoh: 125" />
-              </div>
+              ) : (
+                <div className="space-y-3 pt-2 border-t border-gray-100">
+                  <div>
+                    <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Account Token</label>
+                    <div className="relative">
+                      <input
+                        type={showKirisanToken ? 'text' : 'password'}
+                        value={kirisanToken}
+                        onChange={(e) => setKirisanToken(e.target.value)}
+                        className="w-full pl-3.5 pr-10 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800"
+                        placeholder="Bearer token Kirisan API"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowKirisanToken(!showKirisanToken)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showKirisanToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Channel Key (Email)</label>
+                    <div className="relative">
+                      <input
+                        type={showKirisanChannelKey ? 'text' : 'password'}
+                        value={kirisanChannelKey}
+                        onChange={(e) => setKirisanChannelKey(e.target.value)}
+                        className="w-full pl-3.5 pr-10 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800"
+                        placeholder="Channel token Kirisan Email"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowKirisanChannelKey(!showKirisanChannelKey)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showKirisanChannelKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Login OTP Template ID</label>
+                    <input type="text" value={kirisanLoginOtpTemplateId} onChange={(e) => setKirisanLoginOtpTemplateId(e.target.value)}
+                      className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800"
+                      placeholder="Contoh: 123" />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Reset Password OTP Template ID</label>
+                    <input type="text" value={kirisanResetPasswordTemplateId} onChange={(e) => setKirisanResetPasswordTemplateId(e.target.value)}
+                      className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800"
+                      placeholder="Contoh: 124" />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase font-bold text-gray-400 tracking-wider mb-1">Register OTP Template ID</label>
+                    <input type="text" value={kirisanRegisterOtpTemplateId} onChange={(e) => setKirisanRegisterOtpTemplateId(e.target.value)}
+                      className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black text-gray-800"
+                      placeholder="Contoh: 125" />
+                  </div>
+                </div>
+              )}
+
               <EditButtons
                 saving={saving}
                 onSave={() => {
-                  updateSettings({ kirisanToken, kirisanChannelKey, kirisanLoginOtpTemplateId, kirisanRegisterOtpTemplateId, kirisanResetPasswordTemplateId });
+                  updateSettings({
+                    emailProvider,
+                    kirisanToken,
+                    kirisanChannelKey,
+                    kirisanLoginOtpTemplateId,
+                    kirisanRegisterOtpTemplateId,
+                    kirisanResetPasswordTemplateId,
+                    brevoApiKey,
+                    brevoSenderEmail,
+                    brevoSenderName,
+                    brevoTemplateId,
+                  });
                   setEditingKirisan(false);
                 }}
                 onCancel={cancelKirisan}

@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import prisma from '../lib/prisma';
-import { sendKirisanEmail } from '../lib/mailer';
+import { sendKirisanEmail, sendBrevoEmail } from '../lib/mailer';
 import { invalidateS3ConfigCache } from '../lib/s3';
 
 const router = Router();
@@ -8,7 +8,8 @@ const router = Router();
 const SETTING_KEYS = [
   'projectName', 'logo', 'primaryColor', 'pageBackground',
   'turnstileEnabled', 'turnstileSiteKey', 'turnstileSecretKey', 'fonnteToken',
-  'kirisanToken', 'kirisanChannelKey', 'kirisanLoginOtpTemplateId', 'kirisanRegisterOtpTemplateId', 'kirisanResetPasswordTemplateId',
+  'emailProvider', 'kirisanToken', 'kirisanChannelKey', 'kirisanLoginOtpTemplateId', 'kirisanRegisterOtpTemplateId', 'kirisanResetPasswordTemplateId',
+  'brevoApiKey', 'brevoSenderEmail', 'brevoSenderName', 'brevoTemplateId',
   'senderName', 'senderAddress', 'senderPhone', 'senderEmail', 'bankAccounts', 'termsAndConditions',
   's3Endpoint', 's3Region', 's3Bucket', 's3AccessKeyId', 's3SecretAccessKey', 's3PublicUrlBase',
 ];
@@ -22,11 +23,16 @@ const DEFAULTS: Record<string, string> = {
   turnstileSiteKey: '',
   turnstileSecretKey: '',
   fonnteToken: '',
+  emailProvider: 'kirisan',
   kirisanToken: '',
   kirisanChannelKey: '',
   kirisanLoginOtpTemplateId: '',
   kirisanRegisterOtpTemplateId: '',
   kirisanResetPasswordTemplateId: '',
+  brevoApiKey: '',
+  brevoSenderEmail: '',
+  brevoSenderName: '',
+  brevoTemplateId: '',
   senderName: '',
   senderAddress: '',
   senderPhone: '',
@@ -161,4 +167,66 @@ router.post('/test-kirisan', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/settings/test-brevo
+router.post('/test-brevo', async (req: Request, res: Response) => {
+  try {
+    const { recipient_email, brevo_api_key, brevo_sender_email, brevo_sender_name, brevo_template_id } = req.body;
+
+    let apiKey = brevo_api_key;
+    let senderEmail = brevo_sender_email;
+    let senderName = brevo_sender_name;
+    let templateId = brevo_template_id;
+
+    // Fallback to database settings if body is not fully supplied
+    if (!apiKey) {
+      const rows = await prisma.setting.findMany({
+        where: { key: { in: ['brevoApiKey', 'brevoSenderEmail', 'brevoSenderName', 'brevoTemplateId', 'senderEmail', 'senderName'] } },
+      });
+      const db: Record<string, string> = {};
+      rows.forEach((r: any) => { db[r.key] = r.value; });
+
+      apiKey = apiKey || db.brevoApiKey;
+      senderEmail = senderEmail || db.brevoSenderEmail || db.senderEmail;
+      senderName = senderName || db.brevoSenderName || db.senderName;
+      templateId = templateId || db.brevoTemplateId;
+    }
+
+    if (!recipient_email) {
+      res.status(400).json({ error: 'Recipient email is required' });
+      return;
+    }
+
+    if (!apiKey) {
+      res.status(400).json({ error: 'Brevo API Key belum dikonfigurasi' });
+      return;
+    }
+
+    const testOtp = '123456';
+    const ok = await sendBrevoEmail(
+      recipient_email,
+      {
+        otp: testOtp,
+        code: testOtp,
+        reset_code: testOtp,
+        purpose: 'test-connection',
+        expiry_minutes: 5,
+      },
+      apiKey,
+      senderEmail,
+      senderName,
+      templateId
+    );
+
+    if (ok) {
+      res.json({ success: true, message: `Koneksi berhasil! Email uji coba telah dikirim via Brevo ke ${recipient_email}` });
+    } else {
+      res.status(500).json({ error: 'Gagal mengirim email uji coba via Brevo API. Periksa API Key dan sender email.' });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Gagal menguji Brevo API' });
+  }
+});
+
 export default router;
+

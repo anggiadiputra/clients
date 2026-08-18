@@ -10,11 +10,16 @@ interface Settings {
   turnstileSiteKey: string;
   turnstileSecretKey: string;
   fonnteToken: string;
+  emailProvider: string;
   kirisanToken: string;
   kirisanChannelKey: string;
   kirisanLoginOtpTemplateId: string;
   kirisanRegisterOtpTemplateId: string;
   kirisanResetPasswordTemplateId: string;
+  brevoApiKey: string;
+  brevoSenderEmail: string;
+  brevoSenderName: string;
+  brevoTemplateId: string;
   senderName: string;
   senderAddress: string;
   senderPhone: string;
@@ -38,11 +43,16 @@ const defaultSettings: Settings = {
   turnstileSiteKey: '',
   turnstileSecretKey: '',
   fonnteToken: '',
+  emailProvider: 'kirisan',
   kirisanToken: '',
   kirisanChannelKey: '',
   kirisanLoginOtpTemplateId: '',
   kirisanRegisterOtpTemplateId: '',
   kirisanResetPasswordTemplateId: '',
+  brevoApiKey: '',
+  brevoSenderEmail: '',
+  brevoSenderName: '',
+  brevoTemplateId: '',
   senderName: '',
   senderAddress: '',
   senderPhone: '',

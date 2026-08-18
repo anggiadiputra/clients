@@ -65,23 +65,106 @@ export async function sendKirisanEmail(
   }
 }
 
+export async function sendBrevoEmail(
+  email: string,
+  variables: Record<string, any>,
+  apiKey: string,
+  senderEmail?: string,
+  senderName?: string,
+  templateId?: string
+): Promise<boolean> {
+  try {
+    const cleanApiKey = String(apiKey || '').trim();
+    if (!cleanApiKey) return false;
+
+    const cleanSenderEmail = String(senderEmail || '').trim();
+    const cleanSenderName = String(senderName || '').trim() || 'Client CRM';
+    const cleanTemplateId = String(templateId || '').trim();
+    const numericTemplate = !isNaN(Number(cleanTemplateId)) && Number(cleanTemplateId) > 0 ? Number(cleanTemplateId) : null;
+
+    const otpCode = variables.otp || variables.code || '';
+    const purpose = variables.purpose || 'login';
+    const subjectTitle = purpose === 'reset-password' ? 'Reset Password' : 'Login';
+
+    const body: Record<string, any> = {
+      to: [{ email: String(email || '').trim() }],
+    };
+
+    if (cleanSenderEmail) {
+      body.sender = { email: cleanSenderEmail, name: cleanSenderName };
+    }
+
+    if (numericTemplate) {
+      body.templateId = numericTemplate;
+      body.params = {
+        OTP: otpCode,
+        CODE: otpCode,
+        RESET_CODE: otpCode,
+        PURPOSE: purpose,
+        EXPIRY_MINUTES: 5,
+        ...variables,
+      };
+    } else {
+      body.subject = `Kode OTP ${subjectTitle} - ${cleanSenderName}`;
+      body.htmlContent = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px; background-color: #ffffff;">
+          <h2 style="color: #111827; font-size: 20px; font-weight: 700; margin-top: 0;">Kode OTP Verification</h2>
+          <p style="color: #4b5563; font-size: 14px; line-height: 1.5;">Berikut adalah kode OTP Anda untuk ${purpose === 'reset-password' ? 'reset password' : 'masuk ke sistem'}:</p>
+          <div style="background-color: #f3f4f6; border-radius: 8px; padding: 16px; text-align: center; margin: 20px 0;">
+            <span style="font-family: monospace; font-size: 32px; font-weight: 700; letter-spacing: 6px; color: #111827;">${otpCode}</span>
+          </div>
+          <p style="color: #6b7280; font-size: 13px; margin-bottom: 0;">Kode berlaku selama <strong>5 menit</strong>. Jangan bagikan kode ini kepada siapapun.</p>
+        </div>
+      `;
+    }
+
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': cleanApiKey,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`❌ Brevo API Error (${res.status}):`, errText);
+      return false;
+    }
+
+    console.log(`✅ Email OTP terkirim via Brevo API ke ${email}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error sending email via Brevo API:', error);
+    return false;
+  }
+}
+
 export async function sendOtp(
   email: string,
   code: string,
   purpose: 'login' | 'register' | 'reset-password' = 'login'
 ): Promise<void> {
-  // 1. Coba kirim via Kirisan API jika settings terkonfigurasi
-  let kirisanConfigured = false;
+  let providerConfigured = false;
   try {
     const settings = await prisma.setting.findMany({
       where: {
         key: {
           in: [
+            'emailProvider',
             'kirisanToken',
             'kirisanChannelKey',
             'kirisanLoginOtpTemplateId',
             'kirisanRegisterOtpTemplateId',
             'kirisanResetPasswordTemplateId',
+            'brevoApiKey',
+            'brevoSenderEmail',
+            'brevoSenderName',
+            'brevoTemplateId',
+            'senderEmail',
+            'senderName',
           ],
         },
       },
@@ -90,44 +173,76 @@ export async function sendOtp(
     const config: Record<string, string> = {};
     settings.forEach((s: any) => { config[s.key] = s.value; });
 
-    const token = config.kirisanToken?.trim();
-    const channelKey = config.kirisanChannelKey?.trim();
+    const provider = config.emailProvider?.trim() || 'kirisan';
 
-    let templateId = config.kirisanLoginOtpTemplateId?.trim();
-    if (purpose === 'register' && config.kirisanRegisterOtpTemplateId?.trim()) {
-      templateId = config.kirisanRegisterOtpTemplateId.trim();
-    } else if (purpose === 'reset-password' && config.kirisanResetPasswordTemplateId?.trim()) {
-      templateId = config.kirisanResetPasswordTemplateId.trim();
-    }
+    if (provider === 'brevo') {
+      const apiKey = config.brevoApiKey?.trim();
+      const senderEmail = config.brevoSenderEmail?.trim() || config.senderEmail?.trim();
+      const senderName = config.brevoSenderName?.trim() || config.senderName?.trim() || 'Client CRM';
+      const templateId = config.brevoTemplateId?.trim();
 
-    if (token && channelKey && templateId) {
-      kirisanConfigured = true;
-      const ok = await sendKirisanEmail(
-        email,
-        {
-          otp: code,
-          code: code,
-          reset_code: code,
-          purpose: purpose,
-          expiry_minutes: 5,
-        },
-        templateId,
-        token,
-        channelKey
-      );
+      if (apiKey) {
+        providerConfigured = true;
+        const ok = await sendBrevoEmail(
+          email,
+          {
+            otp: code,
+            code: code,
+            reset_code: code,
+            purpose: purpose,
+            expiry_minutes: 5,
+          },
+          apiKey,
+          senderEmail,
+          senderName,
+          templateId
+        );
 
-      if (ok) return;
+        if (ok) return;
 
-      throw new Error('Gagal mengirim email OTP via Kirisan API. Periksa token, channel key, atau template ID di Pengaturan.');
+        throw new Error('Gagal mengirim email OTP via Brevo API. Periksa API Key atau domain pengirim di Pengaturan.');
+      }
+    } else {
+      // Default: Kirisan API
+      const token = config.kirisanToken?.trim();
+      const channelKey = config.kirisanChannelKey?.trim();
+
+      let templateId = config.kirisanLoginOtpTemplateId?.trim();
+      if (purpose === 'register' && config.kirisanRegisterOtpTemplateId?.trim()) {
+        templateId = config.kirisanRegisterOtpTemplateId.trim();
+      } else if (purpose === 'reset-password' && config.kirisanResetPasswordTemplateId?.trim()) {
+        templateId = config.kirisanResetPasswordTemplateId.trim();
+      }
+
+      if (token && channelKey && templateId) {
+        providerConfigured = true;
+        const ok = await sendKirisanEmail(
+          email,
+          {
+            otp: code,
+            code: code,
+            reset_code: code,
+            purpose: purpose,
+            expiry_minutes: 5,
+          },
+          templateId,
+          token,
+          channelKey
+        );
+
+        if (ok) return;
+
+        throw new Error('Gagal mengirim email OTP via Kirisan API. Periksa token, channel key, atau template ID di Pengaturan.');
+      }
     }
   } catch (error: any) {
-    console.error('Kirisan send error:', error);
-    if (error.message && error.message.includes('Kirisan API')) {
+    console.error('Email send error:', error);
+    if (error.message && (error.message.includes('Kirisan API') || error.message.includes('Brevo API'))) {
       throw error;
     }
   }
 
-  // 2. Fallback ke SMTP Nodemailer jika SMTP terkonfigurasi
+  // Fallback ke SMTP Nodemailer jika SMTP terkonfigurasi
   if (process.env.SMTP_HOST && transporter) {
     await transporter.sendMail({
       from: process.env.SMTP_FROM || process.env.SMTP_USER,
@@ -139,8 +254,9 @@ export async function sendOtp(
     return;
   }
 
-  // 3. Jika Kirisan tidak terkonfigurasi dan tidak ada SMTP, beri pesan error transparan
-  if (!kirisanConfigured) {
-    throw new Error('Pengiriman OTP Kirisan belum lengkap (Account Token, Channel Key, dan Template ID wajib diisi di Pengaturan).');
+  // Jika provider tidak terkonfigurasi dan tidak ada SMTP, beri pesan error transparan
+  if (!providerConfigured) {
+    throw new Error('Pengiriman OTP belum lengkap. Silakan lengkapi konfigurasi Kirisan API atau Brevo API di Pengaturan.');
   }
 }
+

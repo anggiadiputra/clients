@@ -128,6 +128,22 @@ export async function apiTestKirisan(data: {
   return handle(res);
 }
 
+export async function apiTestBrevo(data: {
+  recipient_email: string;
+  brevo_api_key?: string;
+  brevo_sender_email?: string;
+  brevo_sender_name?: string;
+  brevo_template_id?: string;
+}): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`${BASE}/settings/test-brevo`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify(data),
+  });
+  return handle(res);
+}
+
+
 
 
 
