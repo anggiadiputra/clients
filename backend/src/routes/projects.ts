@@ -20,6 +20,21 @@ const ALLOWED_MIME = new Set([
   'application/zip',
   'text/plain',
 ]);
+const ALLOWED_EXTENSIONS = new Set([
+  'pdf', 'png', 'jpg', 'jpeg', 'webp', 'gif',
+  'doc', 'docx', 'xls', 'xlsx', 'zip', 'txt'
+]);
+const DANGEROUS_EXTENSIONS = new Set([
+  'html', 'htm', 'svg', 'xhtml', 'js', 'php', 'sh', 'exe', 'bat', 'cmd', 'vbs', 'scr', 'cgi', 'pl', 'asp', 'aspx', 'jsp'
+]);
+
+function isAllowedExtension(filename: string): boolean {
+  const parts = filename.split('.');
+  if (parts.length < 2) return false;
+  const ext = parts.pop()!.toLowerCase();
+  if (DANGEROUS_EXTENSIONS.has(ext)) return false;
+  return ALLOWED_EXTENSIONS.has(ext);
+}
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 const upload = multer({
@@ -273,6 +288,10 @@ router.patch('/:id', async (req: Request, res: Response) => {
 // DELETE /api/projects/:id
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
+    if (req.authUser?.role !== 'ADMIN') {
+      res.status(403).json({ error: 'Forbidden: hanya ADMIN yang dapat menghapus proyek' });
+      return;
+    }
     const id = parseIntSafe(req.params.id); if (id === null) { res.status(400).json({ error: "Invalid id" }); return; }
     if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
 
@@ -323,8 +342,26 @@ router.post('/:id/comments', async (req: Request, res: Response) => {
 // DELETE /api/projects/:id/comments/:commentId
 router.delete('/:id/comments/:commentId', async (req: Request, res: Response) => {
   try {
-    const commentId = parseIntSafe(req.params.commentId); if (commentId === null) { res.status(400).json({ error: "Invalid commentId" }); return; }
-    if (isNaN(commentId)) { res.status(400).json({ error: 'Invalid commentId' }); return; }
+    const id = parseIntSafe(req.params.id);
+    const commentId = parseIntSafe(req.params.commentId);
+    if (id === null || commentId === null || isNaN(id) || isNaN(commentId)) {
+      res.status(400).json({ error: 'Invalid id atau commentId' });
+      return;
+    }
+
+    const comment = await prisma.projectComment.findUnique({ where: { id: commentId } });
+    if (!comment || comment.projectId !== id) {
+      res.status(404).json({ error: 'Comment not found' });
+      return;
+    }
+
+    const isOwner = comment.userId === req.authUser?.id;
+    const isAdmin = req.authUser?.role === 'ADMIN';
+    if (!isOwner && !isAdmin) {
+      res.status(403).json({ error: 'Forbidden: Anda tidak memiliki akses menghapus komentar ini' });
+      return;
+    }
+
     await prisma.projectComment.delete({ where: { id: commentId } });
     res.json({ success: true });
   } catch (error) {
@@ -339,8 +376,8 @@ router.post('/:id/attachments', upload.single('file'), async (req: Request, res:
     const id = parseIntSafe(req.params.id); if (id === null) { res.status(400).json({ error: "Invalid id" }); return; }
     if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
     if (!req.file) { res.status(400).json({ error: 'File wajib diupload' }); return; }
-    if (!ALLOWED_MIME.has(req.file.mimetype)) {
-      res.status(400).json({ error: `Tipe file ${req.file.mimetype} tidak diizinkan` });
+    if (!ALLOWED_MIME.has(req.file.mimetype) || !isAllowedExtension(req.file.originalname)) {
+      res.status(400).json({ error: `Tipe file atau ekstensi tidak diizinkan` });
       return;
     }
 
@@ -387,10 +424,26 @@ router.post('/:id/attachments', upload.single('file'), async (req: Request, res:
 // DELETE /api/projects/:id/attachments/:attId
 router.delete('/:id/attachments/:attId', async (req: Request, res: Response) => {
   try {
-    const attId = parseIntSafe(req.params.attId); if (attId === null) { res.status(400).json({ error: "Invalid attId" }); return; }
-    if (isNaN(attId)) { res.status(400).json({ error: 'Invalid attId' }); return; }
+    const id = parseIntSafe(req.params.id);
+    const attId = parseIntSafe(req.params.attId);
+    if (id === null || attId === null || isNaN(id) || isNaN(attId)) {
+      res.status(400).json({ error: 'Invalid id atau attId' });
+      return;
+    }
+
     const att = await prisma.projectAttachment.findUnique({ where: { id: attId } });
-    if (!att) { res.status(404).json({ error: 'Attachment not found' }); return; }
+    if (!att || att.projectId !== id) {
+      res.status(404).json({ error: 'Attachment not found' });
+      return;
+    }
+
+    const isOwner = att.uploadedById === req.authUser?.id;
+    const isAdmin = req.authUser?.role === 'ADMIN';
+    if (!isOwner && !isAdmin) {
+      res.status(403).json({ error: 'Forbidden: Anda tidak memiliki akses menghapus lampiran ini' });
+      return;
+    }
+
     await prisma.projectAttachment.delete({ where: { id: attId } });
     try { await deleteObject(att.storageKey); } catch (e) { console.error('S3 delete failed:', e); }
     res.json({ success: true });
@@ -405,8 +458,14 @@ router.get('/by-client/:clientId', async (req: Request, res: Response) => {
   try {
     const clientId = parseIntSafe(req.params.clientId);
     if (clientId === null) { res.status(400).json({ error: 'Invalid clientId' }); return; }
+
+    const where: any = { clientId };
+    if (req.authUser?.role === 'STAFF') {
+      where.assigneeId = req.authUser.id;
+    }
+
     const projects = await prisma.project.findMany({
-      where: { clientId },
+      where,
       orderBy: { updatedAt: 'desc' },
       include: projectInclude,
     });

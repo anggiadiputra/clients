@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import prisma from '../lib/prisma';
 import { sendOtp } from '../lib/mailer';
 import { JWT_SECRET } from '../lib/config';
@@ -26,6 +27,20 @@ const otpLimiter = rateLimit({
   legacyHeaders: false,
   validate: false,
   message: { error: 'Terlalu banyak permintaan OTP. Coba lagi nanti.' },
+});
+
+const otpVerifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+  keyGenerator: (req) => {
+    const email = req.body?.email ? String(req.body.email).toLowerCase().trim() : '';
+    const ip = req.ip || 'unknown';
+    return email ? `${ip}_${email}` : ip;
+  },
+  message: { error: 'Terlalu banyak percobaan verifikasi OTP. Coba lagi nanti.' },
 });
 
 // Verify a Cloudflare Turnstile token against the configured secret key.
@@ -58,12 +73,12 @@ async function verifyTurnstile(token: string | undefined): Promise<boolean> {
   }
 }
 
-function generateToken(userId: number, email: string, role: string): string {
-  return jwt.sign({ userId, email, role }, JWT_SECRET, { expiresIn: '7d' });
+function generateToken(userId: number, email: string, role: string, tokenVersion: number): string {
+  return jwt.sign({ userId, email, role, tokenVersion }, JWT_SECRET, { expiresIn: '7d' });
 }
 
 function generateOtp(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return crypto.randomInt(100000, 1000000).toString();
 }
 
 // Public self-registration is disabled. Users must be created by an admin via /api/users.
@@ -115,7 +130,7 @@ router.post('/login', authLimiter, async (req: Request, res: Response) => {
 });
 
 // POST /api/auth/otp/verify
-router.post('/otp/verify', async (req: Request, res: Response) => {
+router.post('/otp/verify', otpVerifyLimiter, async (req: Request, res: Response) => {
   try {
     const { email, code } = req.body;
 
@@ -141,7 +156,7 @@ router.post('/otp/verify', async (req: Request, res: Response) => {
       return;
     }
 
-    const token = generateToken(user.id, user.email, user.role);
+    const token = generateToken(user.id, user.email, user.role, user.tokenVersion);
     res.json({
       token,
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
@@ -245,7 +260,7 @@ router.put('/profile', async (req: Request, res: Response) => {
       throw err;
     }
 
-    const newToken = generateToken(updatedUser.id, updatedUser.email, updatedUser.role);
+    const newToken = generateToken(updatedUser.id, updatedUser.email, updatedUser.role, updatedUser.tokenVersion);
 
     res.json({
       token: newToken,
@@ -297,7 +312,7 @@ router.put('/change-password', async (req: Request, res: Response) => {
     const hashed = await bcrypt.hash(newPassword, 10);
     await prisma.user.update({
       where: { id: user.id },
-      data: { password: hashed },
+      data: { password: hashed, tokenVersion: { increment: 1 } },
     });
 
     res.json({ success: true, message: 'Password berhasil diubah' });
@@ -346,7 +361,7 @@ router.post('/forgot-password', otpLimiter, async (req: Request, res: Response) 
 });
 
 // POST /api/auth/reset-password (submit OTP + password baru)
-router.post('/reset-password', async (req: Request, res: Response) => {
+router.post('/reset-password', otpVerifyLimiter, async (req: Request, res: Response) => {
   try {
     const { email, code, newPassword } = req.body;
 
@@ -380,7 +395,7 @@ router.post('/reset-password', async (req: Request, res: Response) => {
     const hashed = await bcrypt.hash(newPassword, 10);
     await prisma.user.update({
       where: { id: user.id },
-      data: { password: hashed },
+      data: { password: hashed, tokenVersion: { increment: 1 } },
     });
 
     res.json({ success: true, message: 'Password berhasil diperbarui. Silakan login kembali.' });

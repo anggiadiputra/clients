@@ -3,19 +3,24 @@
  */
 
 const NODE_ENV = process.env.NODE_ENV || 'development';
+export const IS_PRODUCTION = NODE_ENV === 'production';
 
-function requireSecret(name: string, devFallback?: string): string {
-  const value = process.env[name];
-  if (value && value.length > 0) return value;
-  if (NODE_ENV === 'production') {
-    throw new Error(`${name} is required in production. Set it in the environment.`);
+const DEV_FALLBACK_JWT = 'dev-secret-change-me';
+
+function resolveJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (IS_PRODUCTION) {
+    if (!secret || secret === DEV_FALLBACK_JWT || secret.trim().length < 32) {
+      throw new Error(
+        'FATAL SECURITY ERROR: In production, JWT_SECRET must be explicitly set to a cryptographically secure string of at least 32 characters.'
+      );
+    }
+    return secret;
   }
-  if (devFallback !== undefined) return devFallback;
-  throw new Error(`${name} is not set.`);
+  return secret || DEV_FALLBACK_JWT;
 }
 
-export const JWT_SECRET = requireSecret('JWT_SECRET', 'dev-secret-change-me');
-export const IS_PRODUCTION = NODE_ENV === 'production';
+export const JWT_SECRET = resolveJwtSecret();
 export const ALLOWED_ORIGINS: string[] = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
   : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:3001', 'https://crm.diurusin.id', 'https://apis.diurusin.id'];

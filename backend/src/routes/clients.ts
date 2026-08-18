@@ -1,8 +1,18 @@
 import { Router, type Request, type Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import prisma from '../lib/prisma';
 import { validateWhatsappNumber } from '../lib/fonnte';
 
 const router = Router();
+
+const integrationLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+  message: { error: 'Terlalu banyak percobaan validasi WhatsApp. Coba lagi nanti.' },
+});
 
 const clientsResponse = (clients: any[]) =>
   clients.map((c) => ({
@@ -209,7 +219,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/clients/:id/validate-wa
-router.post('/:id/validate-wa', async (req: Request, res: Response) => {
+router.post('/:id/validate-wa', integrationLimiter, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id as string);
     const client = await prisma.client.findUnique({ where: { id } });

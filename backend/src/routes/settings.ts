@@ -1,9 +1,26 @@
 import { Router, type Request, type Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import prisma from '../lib/prisma';
 import { sendKirisanEmail, sendBrevoEmail } from '../lib/mailer';
 import { invalidateS3ConfigCache } from '../lib/s3';
+import { requireRole } from '../lib/rbac';
 
 const router = Router();
+
+// Restrict all settings endpoints to ADMIN role
+router.use(requireRole('ADMIN'));
+
+const SENSITIVE_KEYS = ['s3SecretAccessKey', 'brevoApiKey', 'kirisanToken', 'turnstileSecretKey', 'fonnteToken'];
+const MASK_STRING = '••••••••••••••••';
+
+const integrationLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+  message: { error: 'Terlalu banyak percobaan pengujian integrasi. Coba lagi nanti.' },
+});
 
 const SETTING_KEYS = [
   'projectName', 'logo', 'primaryColor', 'pageBackground',
@@ -54,11 +71,21 @@ export function invalidateSettingsCache() {
   settingsCache = null;
 }
 
+function maskSensitiveSettings(raw: Record<string, string>): Record<string, string> {
+  const masked = { ...raw };
+  for (const key of SENSITIVE_KEYS) {
+    if (masked[key]) {
+      masked[key] = MASK_STRING;
+    }
+  }
+  return masked;
+}
+
 // GET /api/settings
 router.get('/', async (_req: Request, res: Response) => {
   try {
     if (settingsCache) {
-      return res.json(settingsCache);
+      return res.json(maskSensitiveSettings(settingsCache));
     }
     const rows = await prisma.setting.findMany();
     const settings: Record<string, string> = { ...DEFAULTS };
@@ -71,7 +98,7 @@ router.get('/', async (_req: Request, res: Response) => {
       settingsCache = { ...settingsCache, turnstileEnabled: 'false' };
     }
 
-    res.json(settingsCache);
+    res.json(maskSensitiveSettings(settingsCache));
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch settings' });
@@ -82,11 +109,14 @@ router.get('/', async (_req: Request, res: Response) => {
 async function handleSaveSettings(req: Request, res: Response) {
   try {
     const data = req.body;
-    const validKeys = Object.keys(data).filter(k => SETTING_KEYS.includes(k));
+    // Skip updating masked values so database secrets are preserved
+    const validKeys = Object.keys(data).filter(
+      (k) => SETTING_KEYS.includes(k) && String(data[k]) !== MASK_STRING
+    );
 
     if (validKeys.length > 0) {
       await prisma.$transaction(
-        validKeys.map(key =>
+        validKeys.map((key) =>
           prisma.setting.upsert({
             where: { key },
             update: { value: String(data[key]) },
@@ -110,7 +140,7 @@ router.put('/', handleSaveSettings);
 router.post('/', handleSaveSettings);
 
 // POST /api/settings/test-kirisan
-router.post('/test-kirisan', async (req: Request, res: Response) => {
+router.post('/test-kirisan', integrationLimiter, async (req: Request, res: Response) => {
   try {
     const { recipient_email, kirisan_token, kirisan_channel_key, kirisan_template_id } = req.body;
 
@@ -118,15 +148,15 @@ router.post('/test-kirisan', async (req: Request, res: Response) => {
     let channelKey = kirisan_channel_key;
     let templateId = kirisan_template_id;
 
-    // Fallback to database settings if body is not fully supplied
-    if (!token || !channelKey || !templateId) {
+    // Fallback to database settings if body is not fully supplied or masked
+    if (!token || token === MASK_STRING || !channelKey || !templateId) {
       const rows = await prisma.setting.findMany({
         where: { key: { in: ['kirisanToken', 'kirisanChannelKey', 'kirisanLoginOtpTemplateId'] } },
       });
       const db: Record<string, string> = {};
       rows.forEach((r: any) => { db[r.key] = r.value; });
 
-      token = token || db.kirisanToken;
+      if (!token || token === MASK_STRING) token = db.kirisanToken;
       channelKey = channelKey || db.kirisanChannelKey;
       templateId = templateId || db.kirisanLoginOtpTemplateId;
     }
@@ -168,7 +198,7 @@ router.post('/test-kirisan', async (req: Request, res: Response) => {
 });
 
 // POST /api/settings/test-brevo
-router.post('/test-brevo', async (req: Request, res: Response) => {
+router.post('/test-brevo', integrationLimiter, async (req: Request, res: Response) => {
   try {
     const { recipient_email, brevo_api_key, brevo_sender_email, brevo_sender_name, brevo_template_id } = req.body;
 
@@ -177,15 +207,15 @@ router.post('/test-brevo', async (req: Request, res: Response) => {
     let senderName = brevo_sender_name;
     let templateId = brevo_template_id;
 
-    // Fallback to database settings if body is not fully supplied
-    if (!apiKey) {
+    // Fallback to database settings if body is not fully supplied or masked
+    if (!apiKey || apiKey === MASK_STRING) {
       const rows = await prisma.setting.findMany({
         where: { key: { in: ['brevoApiKey', 'brevoSenderEmail', 'brevoSenderName', 'brevoTemplateId', 'senderEmail', 'senderName'] } },
       });
       const db: Record<string, string> = {};
       rows.forEach((r: any) => { db[r.key] = r.value; });
 
-      apiKey = apiKey || db.brevoApiKey;
+      if (!apiKey || apiKey === MASK_STRING) apiKey = db.brevoApiKey;
       senderEmail = senderEmail || db.brevoSenderEmail || db.senderEmail;
       senderName = senderName || db.brevoSenderName || db.senderName;
       templateId = templateId || db.brevoTemplateId;

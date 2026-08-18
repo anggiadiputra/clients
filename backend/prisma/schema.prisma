@@ -49,6 +49,7 @@ model User {
   password    String
   name        String?
   role        UserRole @default(STAFF)
+  tokenVersion Int     @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   projectsAssigned Project[] @relation("ProjectAssignee")

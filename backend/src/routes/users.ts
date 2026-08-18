@@ -104,7 +104,10 @@ router.put('/:id/role', async (req: Request, res: Response) => {
       }
     }
 
-    const updated = await prisma.user.update({ where: { id }, data: { role: role as Role } });
+    const updated = await prisma.user.update({
+      where: { id },
+      data: { role: role as Role, tokenVersion: { increment: 1 } },
+    });
     res.json(publicUser(updated));
   } catch (error) {
     console.error(error);
@@ -155,7 +158,10 @@ router.post('/:id/reset-password', async (req: Request, res: Response) => {
     }
 
     const hashed = await bcrypt.hash(newPassword, 10);
-    await prisma.user.update({ where: { id }, data: { password: hashed } });
+    await prisma.user.update({
+      where: { id },
+      data: { password: hashed, tokenVersion: { increment: 1 } },
+    });
     res.json({ success: true, message: 'Password berhasil direset' });
   } catch (error) {
     console.error(error);

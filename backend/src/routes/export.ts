@@ -4,6 +4,16 @@ import * as XLSX from 'xlsx';
 
 const router = Router();
 
+function sanitizeFormula(value: any): any {
+  if (typeof value === 'string' && value.length > 0) {
+    const firstChar = value.charAt(0);
+    if (['=', '+', '-', '@', '\t', '\r'].includes(firstChar)) {
+      return `'${value}`;
+    }
+  }
+  return value;
+}
+
 // GET /api/export?format=xlsx
 router.get('/', async (req: Request, res: Response) => {
   try {
@@ -13,13 +23,12 @@ router.get('/', async (req: Request, res: Response) => {
     });
 
     const data = clients.map((c: any) => ({
-
-      'Nama Usaha': c.name,
-      Email: c.email || '-',
-      WhatsApp: c.whatsapp || '-',
-      Website: c.website || '-',
-      Alamat: c.address || '-',
-      Status: statusLabel(c.status),
+      'Nama Usaha': sanitizeFormula(c.name),
+      Email: sanitizeFormula(c.email || '-'),
+      WhatsApp: sanitizeFormula(c.whatsapp || '-'),
+      Website: sanitizeFormula(c.website || '-'),
+      Alamat: sanitizeFormula(c.address || '-'),
+      Status: sanitizeFormula(statusLabel(c.status)),
       'Jumlah Catatan': c.notes.length,
       'Dibuat': c.createdAt.toISOString(),
       'Diupdate': c.updatedAt.toISOString(),

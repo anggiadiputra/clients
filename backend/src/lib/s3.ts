@@ -78,6 +78,7 @@ export async function uploadBuffer(key: string, body: Buffer, contentType: strin
     Key: key,
     Body: body,
     ContentType: contentType,
+    ContentDisposition: 'attachment',
   }));
   return publicUrl(cfg, key);
 }

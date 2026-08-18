@@ -1,8 +1,18 @@
 import { Router, type Request, type Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import prisma from '../lib/prisma';
 import { generateInvoicePDF } from '../lib/pdf';
 
 const router = Router();
+
+const pdfLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+  message: { error: 'Terlalu banyak permintaan PDF. Coba lagi dalam beberapa saat.' },
+});
 
 // GET /api/invoices/number/:invoiceNumber
 router.get('/number/:invoiceNumber', async (req: Request, res: Response) => {
@@ -168,7 +178,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 });
 
 // GET /api/invoices/:id/pdf
-router.get('/:id/pdf', async (req: Request, res: Response) => {
+router.get('/:id/pdf', pdfLimiter, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id as string);
     const invoice = await prisma.invoice.findUnique({
