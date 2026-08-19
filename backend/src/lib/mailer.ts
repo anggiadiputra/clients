@@ -147,6 +147,7 @@ export async function sendOtp(
   code: string,
   purpose: 'login' | 'register' | 'reset-password' = 'login'
 ): Promise<void> {
+  console.log(`🔑 [OTP GENERATED] Email: ${email} | Code: ${code} | Purpose: ${purpose}`);
   let providerConfigured = false;
   try {
     const settings = await prisma.setting.findMany({
