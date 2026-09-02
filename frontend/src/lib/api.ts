@@ -4,18 +4,37 @@ export const BASE = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api`
   : '/api';
 
-const token = () => localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || '';
+// ─── SEC-4 fix: In-memory token store ────────────────────────────────────────
+// The JWT is no longer stored in localStorage (which is readable by any
+// JS on the page and thus vulnerable to XSS).  Instead:
+//   • The backend sets the token as an HttpOnly cookie → immune to JS access.
+//   • After login the token is also kept in this module-level variable so the
+//     Authorization header can still be sent for the current session.
+//   • On page refresh the in-memory token is gone, but the HttpOnly cookie is
+//     sent automatically by the browser; requireAuth on the server accepts it.
+
+let _token = '';
+export const setApiToken = (t: string) => { _token = t; };
+export const clearApiToken = () => { _token = ''; };
+
+const token = () => _token;
 
 const headers = () => ({
   'Content-Type': 'application/json',
-  Authorization: `Bearer ${token()}`,
+  ...(token() ? { Authorization: `Bearer ${token()}` } : {}),
 });
+
+/**
+ * Wrapper around fetch that always sends credentials (cookies) so the
+ * HttpOnly auth cookie is included in every request to the backend.
+ */
+const $fetch = (url: string, init: RequestInit = {}): Promise<Response> =>
+  fetch(url, { ...init, credentials: 'include' });
 
 async function handle(res: Response) {
   if (res.status === 401) {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
-    sessionStorage.removeItem('auth_token');
+    // Session expired or token invalidated — clear in-memory token and user cache
+    clearApiToken();
     sessionStorage.removeItem('auth_user');
     window.dispatchEvent(new Event('storage'));
     throw new Error('Unauthorized');
@@ -28,14 +47,14 @@ async function handle(res: Response) {
 }
 
 
-// Auth (public self-registration is disabled; admin creates users via /api/users)
+// ─── Auth ────────────────────────────────────────────────────────────────────
 
 export async function apiLogin(
   email: string,
   password: string,
   turnstileToken?: string,
 ): Promise<{ step: string; email: string }> {
-  const res = await fetch(`${BASE}/auth/login`, {
+  const res = await $fetch(`${BASE}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password, ...(turnstileToken ? { turnstileToken } : {}) }),
@@ -48,7 +67,7 @@ export async function apiLogin(
 }
 
 export async function apiVerifyOtp(email: string, code: string): Promise<{ token: string; user: { id: number; email: string; name: string | null; role: string } }> {
-  const res = await fetch(`${BASE}/auth/otp/verify`, {
+  const res = await $fetch(`${BASE}/auth/otp/verify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, code }),
@@ -61,16 +80,19 @@ export async function apiVerifyOtp(email: string, code: string): Promise<{ token
 }
 
 export async function apiResendOtp(email: string): Promise<void> {
-  const res = await fetch(`${BASE}/auth/otp/resend`, {
+  const res = await $fetch(`${BASE}/auth/otp/resend`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email }),
   });
-  if (!res.ok) throw new Error('Gagal kirim ulang OTP');
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Gagal kirim ulang OTP' }));
+    throw new Error(err.error || 'Gagal kirim ulang OTP');
+  }
 }
 
 export async function apiChangePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
-  const res = await fetch(`${BASE}/auth/change-password`, {
+  const res = await $fetch(`${BASE}/auth/change-password`, {
     method: 'PUT',
     headers: headers(),
     body: JSON.stringify({ currentPassword, newPassword }),
@@ -79,7 +101,7 @@ export async function apiChangePassword(currentPassword: string, newPassword: st
 }
 
 export async function apiUpdateProfile(data: { name?: string; email: string }): Promise<{ token: string; user: { id: number; email: string; name: string | null; role: string }; message: string }> {
-  const res = await fetch(`${BASE}/auth/profile`, {
+  const res = await $fetch(`${BASE}/auth/profile`, {
     method: 'PUT',
     headers: headers(),
     body: JSON.stringify(data),
@@ -87,9 +109,8 @@ export async function apiUpdateProfile(data: { name?: string; email: string }): 
   return handle(res);
 }
 
-
 export async function apiForgotPassword(email: string, turnstileToken?: string): Promise<{ message: string }> {
-  const res = await fetch(`${BASE}/auth/forgot-password`, {
+  const res = await $fetch(`${BASE}/auth/forgot-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, ...(turnstileToken ? { turnstileToken } : {}) }),
@@ -102,7 +123,7 @@ export async function apiForgotPassword(email: string, turnstileToken?: string):
 }
 
 export async function apiResetPassword(email: string, code: string, newPassword: string): Promise<{ success: boolean; message: string }> {
-  const res = await fetch(`${BASE}/auth/reset-password`, {
+  const res = await $fetch(`${BASE}/auth/reset-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, code, newPassword }),
@@ -114,13 +135,18 @@ export async function apiResetPassword(email: string, code: string, newPassword:
   return res.json();
 }
 
+/** SEC-4 fix: clear the HttpOnly cookie server-side on logout. */
+export async function apiLogout(): Promise<void> {
+  await $fetch(`${BASE}/auth/logout`, { method: 'POST' }).catch(() => {});
+}
+
 export async function apiTestKirisan(data: {
   recipient_email: string;
   kirisan_token?: string;
   kirisan_channel_key?: string;
   kirisan_template_id?: string;
 }): Promise<{ success: boolean; message: string }> {
-  const res = await fetch(`${BASE}/settings/test-kirisan`, {
+  const res = await $fetch(`${BASE}/settings/test-kirisan`, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify(data),
@@ -135,7 +161,7 @@ export async function apiTestBrevo(data: {
   brevo_sender_name?: string;
   brevo_template_id?: string;
 }): Promise<{ success: boolean; message: string }> {
-  const res = await fetch(`${BASE}/settings/test-brevo`, {
+  const res = await $fetch(`${BASE}/settings/test-brevo`, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify(data),
@@ -144,15 +170,13 @@ export async function apiTestBrevo(data: {
 }
 
 
-
-
+// ─── Clients ─────────────────────────────────────────────────────────────────
 
 export async function fetchClientByDisplayId(displayId: string): Promise<Client> {
-  const res = await fetch(`${BASE}/clients/display/${displayId}`, { headers: headers() });
+  const res = await $fetch(`${BASE}/clients/display/${displayId}`, { headers: headers() });
   return handle(res);
 }
 
-// Clients
 export async function fetchClients(params?: { search?: string; status?: string | string[] }): Promise<Client[]> {
   const qs = new URLSearchParams();
   if (params?.search) qs.set('search', params.search);
@@ -163,17 +187,17 @@ export async function fetchClients(params?: { search?: string; status?: string |
     qs.set('status', status);
   }
   const url = `${BASE}/clients${qs.toString() ? '?' + qs : ''}`;
-  const res = await fetch(url, { headers: headers() });
+  const res = await $fetch(url, { headers: headers() });
   return handle(res);
 }
 
 export async function fetchClient(id: number): Promise<Client> {
-  const res = await fetch(`${BASE}/clients/${id}`, { headers: headers() });
+  const res = await $fetch(`${BASE}/clients/${id}`, { headers: headers() });
   return handle(res);
 }
 
 export async function createClient(data: Partial<Client>): Promise<Client> {
-  const res = await fetch(`${BASE}/clients`, {
+  const res = await $fetch(`${BASE}/clients`, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify(data),
@@ -182,7 +206,7 @@ export async function createClient(data: Partial<Client>): Promise<Client> {
 }
 
 export async function updateClient(id: number, data: Partial<Client>): Promise<Client> {
-  const res = await fetch(`${BASE}/clients/${id}`, {
+  const res = await $fetch(`${BASE}/clients/${id}`, {
     method: 'PUT',
     headers: headers(),
     body: JSON.stringify(data),
@@ -191,7 +215,7 @@ export async function updateClient(id: number, data: Partial<Client>): Promise<C
 }
 
 export async function deleteClient(id: number): Promise<void> {
-  const res = await fetch(`${BASE}/clients/${id}`, {
+  const res = await $fetch(`${BASE}/clients/${id}`, {
     method: 'DELETE',
     headers: headers(),
   });
@@ -199,7 +223,7 @@ export async function deleteClient(id: number): Promise<void> {
 }
 
 export async function validateClientWhatsapp(id: number): Promise<{ isWhatsappValid: boolean | null }> {
-  const res = await fetch(`${BASE}/clients/${id}/validate-wa`, {
+  const res = await $fetch(`${BASE}/clients/${id}/validate-wa`, {
     method: 'POST',
     headers: headers(),
   });
@@ -208,7 +232,7 @@ export async function validateClientWhatsapp(id: number): Promise<{ isWhatsappVa
 
 // Notes
 export async function addNote(clientId: number, content: string): Promise<Note> {
-  const res = await fetch(`${BASE}/clients/${clientId}/notes`, {
+  const res = await $fetch(`${BASE}/clients/${clientId}/notes`, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify({ content }),
@@ -217,7 +241,7 @@ export async function addNote(clientId: number, content: string): Promise<Note> 
 }
 
 export async function deleteNote(clientId: number, noteId: number): Promise<void> {
-  const res = await fetch(`${BASE}/clients/${clientId}/notes/${noteId}`, {
+  const res = await $fetch(`${BASE}/clients/${clientId}/notes/${noteId}`, {
     method: 'DELETE',
     headers: headers(),
   });
@@ -226,20 +250,21 @@ export async function deleteNote(clientId: number, noteId: number): Promise<void
 
 // Activities
 export async function fetchActivities(clientId: number): Promise<Activity[]> {
-  const res = await fetch(`${BASE}/clients/${clientId}/activities`, {
+  const res = await $fetch(`${BASE}/clients/${clientId}/activities`, {
     headers: headers(),
   });
   return handle(res);
 }
 
-// Invoices
+// ─── Invoices ────────────────────────────────────────────────────────────────
+
 export async function fetchAllInvoices(): Promise<Invoice[]> {
-  const res = await fetch(`${BASE}/invoices`, { headers: headers() });
+  const res = await $fetch(`${BASE}/invoices`, { headers: headers() });
   return handle(res);
 }
 
 export async function fetchInvoices(clientId: number): Promise<Invoice[]> {
-  const res = await fetch(`${BASE}/clients/${clientId}/invoices`, { headers: headers() });
+  const res = await $fetch(`${BASE}/clients/${clientId}/invoices`, { headers: headers() });
   return handle(res);
 }
 
@@ -247,7 +272,7 @@ export async function createInvoice(clientId: number, data: {
   dueDate: string; tax?: number; notes?: string;
   items: { description: string; quantity: number; unitPrice: number }[];
 }): Promise<Invoice> {
-  const res = await fetch(`${BASE}/clients/${clientId}/invoices`, {
+  const res = await $fetch(`${BASE}/clients/${clientId}/invoices`, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify(data),
@@ -256,7 +281,7 @@ export async function createInvoice(clientId: number, data: {
 }
 
 export async function updateInvoiceStatus(invoiceId: number, status: string): Promise<Invoice> {
-  const res = await fetch(`${BASE}/invoices/${invoiceId}/status`, {
+  const res = await $fetch(`${BASE}/invoices/${invoiceId}/status`, {
     method: 'PUT',
     headers: headers(),
     body: JSON.stringify({ status }),
@@ -268,23 +293,24 @@ export async function updateInvoice(invoiceId: number, data: {
   issueDate?: string; dueDate?: string; discount?: number; tax?: number; notes?: string;
   items?: { description: string; quantity: number; unitPrice: number }[];
 }): Promise<Invoice> {
-  const res = await fetch(`${BASE}/invoices/${invoiceId}`, {
+  const res = await $fetch(`${BASE}/invoices/${invoiceId}`, {
     method: 'PUT', headers: headers(), body: JSON.stringify(data),
   });
   return handle(res);
 }
 
 export async function deleteInvoice(invoiceId: number): Promise<void> {
-  const res = await fetch(`${BASE}/invoices/${invoiceId}`, {
+  const res = await $fetch(`${BASE}/invoices/${invoiceId}`, {
     method: 'DELETE',
     headers: headers(),
   });
   return handle(res);
 }
 
-// Download helpers — fetch as blob using Authorization header so token never leaks into URLs/logs.
+// Download helpers — send Authorization header + cookie so the token never
+// leaks into URLs or server logs.
 async function downloadBlob(path: string, fallbackName: string) {
-  const res = await fetch(path, { headers: headers() });
+  const res = await $fetch(path, { headers: headers() });
   if (!res.ok) {
     let errMsg = 'Download gagal';
     try { const j = await res.json(); if (j?.error) errMsg = j.error; } catch {}
@@ -294,7 +320,6 @@ async function downloadBlob(path: string, fallbackName: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  // Prefer server-provided filename via Content-Disposition if any
   const cd = res.headers.get('Content-Disposition') || '';
   const match = cd.match(/filename="?([^";]+)"?/);
   a.download = match?.[1] || fallbackName;
@@ -311,28 +336,29 @@ export async function downloadInvoicePdf(invoiceId: number, invoiceNumber?: stri
   );
 }
 
-// Services
+// ─── Services ────────────────────────────────────────────────────────────────
+
 export async function fetchServices(): Promise<ServiceItem[]> {
-  const res = await fetch(`${BASE}/services`, { headers: headers() });
+  const res = await $fetch(`${BASE}/services`, { headers: headers() });
   return handle(res);
 }
 
 export async function createService(data: { name: string; description?: string; price: number }): Promise<ServiceItem> {
-  const res = await fetch(`${BASE}/services`, {
+  const res = await $fetch(`${BASE}/services`, {
     method: 'POST', headers: headers(), body: JSON.stringify(data),
   });
   return handle(res);
 }
 
 export async function updateService(id: number, data: { name: string; description?: string; price: number }): Promise<ServiceItem> {
-  const res = await fetch(`${BASE}/services/${id}`, {
+  const res = await $fetch(`${BASE}/services/${id}`, {
     method: 'PUT', headers: headers(), body: JSON.stringify(data),
   });
   return handle(res);
 }
 
 export async function deleteService(id: number): Promise<void> {
-  const res = await fetch(`${BASE}/services/${id}`, {
+  const res = await $fetch(`${BASE}/services/${id}`, {
     method: 'DELETE', headers: headers(),
   });
   return handle(res);
@@ -346,13 +372,13 @@ export async function exportClientsXlsx() {
   );
 }
 
-// Re-fetch the authenticated user's record (returns role).
+// ─── Users ───────────────────────────────────────────────────────────────────
+
 export async function fetchMe(): Promise<{ id: number; email: string; name: string | null; role: string }> {
-  const res = await fetch(`${BASE}/auth/me`, { headers: headers() });
+  const res = await $fetch(`${BASE}/auth/me`, { headers: headers() });
   return handle(res);
 }
 
-// User management (admin only)
 export interface ManagedUser {
   id: number;
   email: string;
@@ -362,18 +388,17 @@ export interface ManagedUser {
 }
 
 export async function fetchUsers(): Promise<ManagedUser[]> {
-  const res = await fetch(`${BASE}/users`, { headers: headers() });
+  const res = await $fetch(`${BASE}/users`, { headers: headers() });
   return handle(res);
 }
 
-// Lightweight PIC list (STAFF only) — available to any authenticated user for project assignment dropdowns.
 export async function fetchPicOptions(): Promise<{ id: number; name: string | null; email: string }[]> {
-  const res = await fetch(`${BASE}/users/pic-options`, { headers: headers() });
+  const res = await $fetch(`${BASE}/users/pic-options`, { headers: headers() });
   return handle(res);
 }
 
 export async function createUser(data: { email: string; password: string; name?: string; role?: 'ADMIN' | 'STAFF' | 'VIEWER' }): Promise<ManagedUser> {
-  const res = await fetch(`${BASE}/users`, {
+  const res = await $fetch(`${BASE}/users`, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify(data),
@@ -382,7 +407,7 @@ export async function createUser(data: { email: string; password: string; name?:
 }
 
 export async function updateUserRole(id: number, role: 'ADMIN' | 'STAFF' | 'VIEWER'): Promise<ManagedUser> {
-  const res = await fetch(`${BASE}/users/${id}/role`, {
+  const res = await $fetch(`${BASE}/users/${id}/role`, {
     method: 'PUT',
     headers: headers(),
     body: JSON.stringify({ role }),
@@ -391,7 +416,7 @@ export async function updateUserRole(id: number, role: 'ADMIN' | 'STAFF' | 'VIEW
 }
 
 export async function deleteUser(id: number): Promise<void> {
-  const res = await fetch(`${BASE}/users/${id}`, {
+  const res = await $fetch(`${BASE}/users/${id}`, {
     method: 'DELETE',
     headers: headers(),
   });
@@ -399,7 +424,7 @@ export async function deleteUser(id: number): Promise<void> {
 }
 
 export async function adminResetPassword(id: number, newPassword: string): Promise<{ success: boolean; message: string }> {
-  const res = await fetch(`${BASE}/users/${id}/reset-password`, {
+  const res = await $fetch(`${BASE}/users/${id}/reset-password`, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify({ newPassword }),
@@ -407,7 +432,8 @@ export async function adminResetPassword(id: number, newPassword: string): Promi
   return handle(res);
 }
 
-// Page access matrix
+// ─── Page Access ─────────────────────────────────────────────────────────────
+
 export interface PageAccessRow {
   id: number;
   role: 'ADMIN' | 'STAFF' | 'VIEWER';
@@ -416,17 +442,17 @@ export interface PageAccessRow {
 }
 
 export async function fetchPageAccesses(): Promise<PageAccessRow[]> {
-  const res = await fetch(`${BASE}/access`, { headers: headers() });
+  const res = await $fetch(`${BASE}/access`, { headers: headers() });
   return handle(res);
 }
 
 export async function fetchMyAccesses(): Promise<PageAccessRow[]> {
-  const res = await fetch(`${BASE}/access/me`, { headers: headers() });
+  const res = await $fetch(`${BASE}/access/me`, { headers: headers() });
   return handle(res);
 }
 
 export async function updatePageAccess(role: 'ADMIN' | 'STAFF' | 'VIEWER', pageKey: string, allowed: boolean): Promise<PageAccessRow> {
-  const res = await fetch(`${BASE}/access/${role}/${pageKey}`, {
+  const res = await $fetch(`${BASE}/access/${role}/${pageKey}`, {
     method: 'PUT',
     headers: headers(),
     body: JSON.stringify({ allowed }),
@@ -434,7 +460,8 @@ export async function updatePageAccess(role: 'ADMIN' | 'STAFF' | 'VIEWER', pageK
   return handle(res);
 }
 
-// ============= Projects =============
+// ─── Projects ────────────────────────────────────────────────────────────────
+
 export interface ProjectFilters {
   status?: ProjectStatus;
   clientId?: number;
@@ -451,17 +478,17 @@ export async function fetchProjects(filters: ProjectFilters = {}): Promise<Proje
   if (filters.priority) params.set('priority', filters.priority);
   if (filters.q) params.set('q', filters.q);
   const qs = params.toString();
-  const res = await fetch(`${BASE}/projects${qs ? `?${qs}` : ''}`, { headers: headers() });
+  const res = await $fetch(`${BASE}/projects${qs ? `?${qs}` : ''}`, { headers: headers() });
   return handle(res);
 }
 
 export async function fetchProject(id: number): Promise<ProjectDetail> {
-  const res = await fetch(`${BASE}/projects/${id}`, { headers: headers() });
+  const res = await $fetch(`${BASE}/projects/${id}`, { headers: headers() });
   return handle(res);
 }
 
 export async function fetchProjectsByClient(clientId: number): Promise<Project[]> {
-  const res = await fetch(`${BASE}/projects/by-client/${clientId}`, { headers: headers() });
+  const res = await $fetch(`${BASE}/projects/by-client/${clientId}`, { headers: headers() });
   return handle(res);
 }
 
@@ -478,7 +505,7 @@ export interface CreateProjectInput {
 }
 
 export async function createProject(input: CreateProjectInput): Promise<Project> {
-  const res = await fetch(`${BASE}/projects`, {
+  const res = await $fetch(`${BASE}/projects`, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify(input),
@@ -498,7 +525,7 @@ export interface UpdateProjectInput {
 }
 
 export async function updateProject(id: number, input: UpdateProjectInput): Promise<Project> {
-  const res = await fetch(`${BASE}/projects/${id}`, {
+  const res = await $fetch(`${BASE}/projects/${id}`, {
     method: 'PATCH',
     headers: headers(),
     body: JSON.stringify(input),
@@ -507,12 +534,12 @@ export async function updateProject(id: number, input: UpdateProjectInput): Prom
 }
 
 export async function deleteProject(id: number): Promise<{ success: boolean }> {
-  const res = await fetch(`${BASE}/projects/${id}`, { method: 'DELETE', headers: headers() });
+  const res = await $fetch(`${BASE}/projects/${id}`, { method: 'DELETE', headers: headers() });
   return handle(res);
 }
 
 export async function addProjectComment(projectId: number, body: string): Promise<ProjectComment> {
-  const res = await fetch(`${BASE}/projects/${projectId}/comments`, {
+  const res = await $fetch(`${BASE}/projects/${projectId}/comments`, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify({ body }),
@@ -521,7 +548,7 @@ export async function addProjectComment(projectId: number, body: string): Promis
 }
 
 export async function deleteProjectComment(projectId: number, commentId: number): Promise<{ success: boolean }> {
-  const res = await fetch(`${BASE}/projects/${projectId}/comments/${commentId}`, {
+  const res = await $fetch(`${BASE}/projects/${projectId}/comments/${commentId}`, {
     method: 'DELETE',
     headers: headers(),
   });
@@ -531,9 +558,10 @@ export async function deleteProjectComment(projectId: number, commentId: number)
 export async function uploadProjectAttachment(projectId: number, file: File): Promise<ProjectAttachment> {
   const fd = new FormData();
   fd.append('file', file);
+  // Omit Content-Type so the browser sets the correct multipart boundary
   const { 'Content-Type': _omit, ...authHeaders } = headers();
   void _omit;
-  const res = await fetch(`${BASE}/projects/${projectId}/attachments`, {
+  const res = await $fetch(`${BASE}/projects/${projectId}/attachments`, {
     method: 'POST',
     headers: authHeaders,
     body: fd,
@@ -542,7 +570,7 @@ export async function uploadProjectAttachment(projectId: number, file: File): Pr
 }
 
 export async function deleteProjectAttachment(projectId: number, attId: number): Promise<{ success: boolean }> {
-  const res = await fetch(`${BASE}/projects/${projectId}/attachments/${attId}`, {
+  const res = await $fetch(`${BASE}/projects/${projectId}/attachments/${attId}`, {
     method: 'DELETE',
     headers: headers(),
   });

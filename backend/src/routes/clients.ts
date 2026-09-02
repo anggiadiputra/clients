@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Router, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import prisma from '../lib/prisma';
@@ -418,9 +419,10 @@ function statusLabel(status: string): string {
 // RC #5 fix: Generate candidate only (no check-then-act)
 function generateDisplayIdCandidate(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const bytes = crypto.randomBytes(8);
   let id = '';
   for (let i = 0; i < 8; i++) {
-    id += chars[Math.floor(Math.random() * chars.length)];
+    id += chars[bytes[i] % chars.length];
   }
   return `CL-${id}`;
 }
@@ -429,7 +431,7 @@ function generateDisplayIdCandidate(): string {
 function generateInvoiceNumberCandidate(): string {
   const now = new Date();
   const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-  const random = Math.floor(Math.random() * 9999).toString().padStart(4, '0');
+  const random = (crypto.randomBytes(3).readUIntBE(0, 3) % 1_000_000).toString().padStart(6, '0');
   return `INV-${datePart}-${random}`;
 }
 

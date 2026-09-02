@@ -23,8 +23,9 @@ export default function InvoiceDetailPage() {
   async function load() {
     if (!invoiceNumber) return;
     try {
-      const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-      const res = await fetch(`${BASE}/invoices/number/${invoiceNumber}`, { headers: { Authorization: `Bearer ${token}` } });
+      // SEC-4 fix: use credentials:'include' so the HttpOnly auth cookie is sent
+      // automatically — no need to read the JWT from localStorage.
+      const res = await fetch(`${BASE}/invoices/number/${invoiceNumber}`, { credentials: 'include' });
 
       if (!res.ok) throw new Error('Not found');
       const data = await res.json();

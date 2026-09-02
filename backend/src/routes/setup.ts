@@ -5,8 +5,16 @@ import { invalidateSettingsCache } from './settings';
 
 const router = Router();
 
-// GET /api/setup/status — check if system needs initial installation
-router.get('/status', async (_req: Request, res: Response) => {
+/** Sentinel thrown inside transactions for business-logic failures. */
+class TxError extends Error {
+  constructor(public readonly code: string, message: string) {
+    super(message);
+    this.name = 'TxError';
+  }
+}
+
+// GET /api/setup/status
+router.get('/status', async (_req, res) => {
   try {
     const userCount = await prisma.user.count();
     res.json({ needsSetup: userCount === 0 });
@@ -16,17 +24,12 @@ router.get('/status', async (_req: Request, res: Response) => {
   }
 });
 
-// POST /api/setup — perform initial installation (create first admin user & brand settings)
-router.post('/', async (req: Request, res: Response) => {
+// POST /api/setup
+router.post('/', async (req, res) => {
   try {
-    // Security check: ensure setup can only run ONCE when database has zero users
-    const userCount = await prisma.user.count();
-    if (userCount > 0) {
-      return res.status(403).json({ error: 'Instalasi sudah selesai. Setup tidak dapat dijalankan ulang.' });
-    }
-
     const { name, email, password, projectName } = req.body;
 
+    // --- Validation (outside transaction — fast, no DB locks needed) ---
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Nama, email, dan password wajib diisi.' });
     }
@@ -39,18 +42,30 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Password harus mengombinasikan huruf dan angka.' });
     }
 
-    // 1. Hash password & create primary Admin user
+    // --- Hash BEFORE transaction (bcrypt is slow; must not hold DB locks) ---
     const hashedPassword = await bcrypt.hash(String(password), 10);
-    const adminUser = await prisma.user.create({
-      data: {
-        name: String(name).trim(),
-        email: String(email).trim().toLowerCase(),
-        password: hashedPassword,
-        role: 'ADMIN',
-      },
-    });
 
-    // 2. Initialize default brand settings if project name provided
+    // --- Serializable transaction: count check → create user (atomic) ---
+    const adminUser = await prisma.$transaction(
+      async (tx) => {
+        const userCount = await tx.user.count();
+        if (userCount > 0) {
+          throw new TxError('ALREADY_SETUP', 'Setup already completed');
+        }
+
+        return tx.user.create({
+          data: {
+            name: String(name).trim(),
+            email: String(email).trim().toLowerCase(),
+            password: hashedPassword,
+            role: 'ADMIN',
+          },
+        });
+      },
+      { isolationLevel: 'Serializable' },
+    );
+
+    // --- Non-critical work outside transaction ---
     if (projectName && String(projectName).trim()) {
       await prisma.setting.upsert({
         where: { key: 'projectName' },
@@ -63,14 +78,18 @@ router.post('/', async (req: Request, res: Response) => {
     res.json({
       success: true,
       message: 'Instalasi berhasil! Akun administrator telah dibuat.',
-      user: {
-        id: adminUser.id,
-        email: adminUser.email,
-        name: adminUser.name,
-        role: adminUser.role,
-      },
+      user: { id: adminUser.id, email: adminUser.email, name: adminUser.name, role: adminUser.role },
     });
-  } catch (error) {
+  } catch (error: any) {
+    if (error instanceof TxError && error.code === 'ALREADY_SETUP') {
+      return res.status(403).json({ error: 'Instalasi sudah selesai. Setup tidak dapat dijalankan ulang.' });
+    }
+
+    // MySQL Serializable can produce deadlocks (P2034) under concurrent writes
+    if (error?.code === 'P2034') {
+      return res.status(409).json({ error: 'Permintaan bentrok dengan operasi lain. Silakan coba lagi.' });
+    }
+
     console.error(error);
     res.status(500).json({ error: 'Gagal menyelesaikan instalasi.' });
   }

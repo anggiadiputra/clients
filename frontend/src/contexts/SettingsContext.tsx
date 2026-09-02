@@ -1,6 +1,12 @@
 import { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from 'react';
 import { BASE } from '../lib/api';
 
+// SEC-4 fix: use credentials:'include' (HttpOnly cookie) for auth instead of
+// reading the JWT from localStorage.  All fetch calls below send the cookie
+// automatically; requireAuth on the server accepts it as a fallback.
+const credFetch = (url: string, init: RequestInit = {}) =>
+  fetch(url, { ...init, credentials: 'include' });
+
 interface Settings {
   projectName: string;
   logo: string;
@@ -90,9 +96,7 @@ const SettingsContext = createContext<SettingsContextType>({
   clearError: () => {},
 });
 
-function getToken(): string | null {
-  return localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-}
+
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Settings>(defaultSettings);
@@ -109,29 +113,18 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     inFlight.current?.abort();
     inFlight.current = controller;
 
-    const token = getToken();
-    if (!token) {
-      // Not logged in — fetch public branding settings (no auth needed)
-      fetch(`${BASE}/settings/public`)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (data && typeof data === 'object') {
-            setSettings((prev) => ({ ...prev, ...data }));
-          }
-        })
-        .catch(() => {})
-        .finally(() => setLoaded(true));
-      return;
-    }
-
-    fetch(`${BASE}/settings`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: controller.signal,
-    })
+    // Try full settings (admin). Falls back to branding (staff) or public (unauthenticated).
+    credFetch(`${BASE}/settings`, { signal: controller.signal })
     .then((res) => {
-      // Admin-only endpoint — non-admin users get 403, fall back to public branding.
+      if (res.status === 401) {
+        // Not authenticated yet — fetch public branding only
+        return fetch(`${BASE}/settings/public`)
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null);
+      }
       if (res.status === 403) {
-        return fetch(`${BASE}/settings/branding`, { headers: { Authorization: `Bearer ${token}` } })
+        // Non-admin — fall back to protected branding endpoint
+        return credFetch(`${BASE}/settings/branding`)
           .then((r) => (r.ok ? r.json() : null))
           .catch(() => null);
       }
@@ -155,24 +148,19 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   // Re-hydrate when auth becomes available (login event from AuthContext)
   const inFlightAuth = useRef<AbortController | null>(null);
-  const lastAuthTokenRef = useRef<string>('');
+  const lastAuthTokenRef = useRef<string>(''); // kept for structural compatibility, no longer stores a token
 
   useEffect(() => {
     function onAuth() {
-      const token = getToken();
-      if (!token) return;
-      // Skip if we already hydrated for this exact token
-      if (lastAuthTokenRef.current === token) return;
-      lastAuthTokenRef.current = token;
       // Abort any in-flight auth hydration
       inFlightAuth.current?.abort();
       const controller = new AbortController();
       inFlightAuth.current = controller;
-      // Try full /api/settings first (admin only); fall back to /api/settings/branding for staff.
-      fetch(`${BASE}/settings`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
+      // Re-fetch full settings now that the auth cookie is available.
+      credFetch(`${BASE}/settings`, { signal: controller.signal })
         .then((res) => {
           if (res.status === 403) {
-            return fetch(`${BASE}/settings/branding`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
+            return credFetch(`${BASE}/settings/branding`, { signal: controller.signal })
               .then((r) => (r.ok ? r.json() : null))
               .catch(() => null);
           }
@@ -212,9 +200,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateSettings = useCallback(async (partial: Partial<Settings>) => {
-    const token = getToken();
-    if (!token) return;
-
     setSaving(true);
     setError(null);
 
@@ -222,12 +207,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setSettings((prev) => ({ ...prev, ...partial }));
 
     try {
-      const res = await fetch(`${BASE}/settings`, {
+      const res = await credFetch(`${BASE}/settings`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(partial),
       });
 

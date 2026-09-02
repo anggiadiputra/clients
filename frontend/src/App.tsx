@@ -25,7 +25,10 @@ import type { ReactNode } from 'react';
 
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
+  // Wait for the cookie-based session check to complete before redirecting.
+  // Without this guard, a page refresh would briefly flash the login page.
+  if (isLoading) return null;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <DashboardLayout>{children}</DashboardLayout>;
 }

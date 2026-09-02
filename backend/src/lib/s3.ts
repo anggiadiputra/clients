@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import prisma from './prisma';
 
@@ -11,29 +12,41 @@ interface S3Config {
 }
 
 let cache: { config: S3Config; loadedAt: number } | null = null;
+let loadPromise: Promise<S3Config> | null = null;
 const CACHE_TTL_MS = 30_000;
 
 async function loadConfig(): Promise<S3Config> {
   if (cache && Date.now() - cache.loadedAt < CACHE_TTL_MS) return cache.config;
-  const rows = await prisma.setting.findMany({
-    where: { key: { in: ['s3Endpoint', 's3Region', 's3Bucket', 's3AccessKeyId', 's3SecretAccessKey', 's3PublicUrlBase'] } },
-  });
-  const map: Record<string, string> = {};
-  for (const r of rows) map[r.key] = r.value;
-  const cfg: S3Config = {
-    endpoint: map.s3Endpoint || '',
-    region: map.s3Region || 'auto',
-    bucket: map.s3Bucket || '',
-    accessKeyId: map.s3AccessKeyId || '',
-    secretAccessKey: map.s3SecretAccessKey || '',
-    publicUrlBase: map.s3PublicUrlBase || '',
-  };
-  cache = { config: cfg, loadedAt: Date.now() };
-  return cfg;
+  if (loadPromise) return loadPromise;
+  loadPromise = (async () => {
+    try {
+      const rows = await prisma.setting.findMany({
+        where: { key: { in: ['s3Endpoint', 's3Region', 's3Bucket', 's3AccessKeyId', 's3SecretAccessKey', 's3PublicUrlBase'] } },
+      });
+      const map: Record<string, string> = {};
+      for (const r of rows) map[r.key] = r.value;
+      const cfg: S3Config = {
+        endpoint: map.s3Endpoint || '',
+        region: map.s3Region || 'auto',
+        bucket: map.s3Bucket || '',
+        accessKeyId: map.s3AccessKeyId || '',
+        secretAccessKey: map.s3SecretAccessKey || '',
+        publicUrlBase: map.s3PublicUrlBase || '',
+      };
+      cache = { config: cfg, loadedAt: Date.now() };
+      loadPromise = null;
+      return cfg;
+    } catch (err) {
+      loadPromise = null;
+      throw err;
+    }
+  })();
+  return loadPromise;
 }
 
 export function invalidateS3ConfigCache() {
   cache = null;
+  loadPromise = null;
 }
 
 export async function getS3Config(): Promise<S3Config> {
@@ -92,6 +105,6 @@ export async function deleteObject(key: string): Promise<void> {
 export function makeStorageKey(projectId: number, filename: string): string {
   const safe = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
   const ts = Date.now();
-  const rand = Math.random().toString(36).slice(2, 8);
+  const rand = crypto.randomBytes(6).toString('hex');
   return `projects/${projectId}/${ts}-${rand}-${safe}`;
 }

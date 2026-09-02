@@ -35,6 +35,43 @@ function isAllowedExtension(filename: string): boolean {
   if (DANGEROUS_EXTENSIONS.has(ext)) return false;
   return ALLOWED_EXTENSIONS.has(ext);
 }
+
+function validateMagicBytes(buffer: Buffer, mimetype: string): boolean {
+  if (buffer.length < 4) return false;
+  switch (mimetype) {
+    case 'image/png':
+      return buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47;
+    case 'image/jpeg':
+      return buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF;
+    case 'application/pdf':
+      return buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46;
+    case 'image/gif':
+      return buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x38;
+    case 'image/webp':
+      return buffer.length >= 12 &&
+        buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
+        buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50;
+    case 'application/zip':
+    case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+    case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+      return buffer[0] === 0x50 && buffer[1] === 0x4B && buffer[2] === 0x03 && buffer[3] === 0x04;
+    case 'application/msword':
+    case 'application/vnd.ms-excel':
+      return buffer[0] === 0xD0 && buffer[1] === 0xCF && buffer[2] === 0x11 && buffer[3] === 0xE0;
+    case 'text/plain': {
+      const sample = buffer.slice(0, 512);
+      for (const byte of sample) {
+        if (byte !== 0x09 && byte !== 0x0A && byte !== 0x0D && !(byte >= 0x20 && byte <= 0x7E) && byte < 0x80) {
+          return false;
+        }
+      }
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 const upload = multer({
@@ -377,7 +414,11 @@ router.post('/:id/attachments', upload.single('file'), async (req: Request, res:
     if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
     if (!req.file) { res.status(400).json({ error: 'File wajib diupload' }); return; }
     if (!ALLOWED_MIME.has(req.file.mimetype) || !isAllowedExtension(req.file.originalname)) {
-      res.status(400).json({ error: `Tipe file atau ekstensi tidak diizinkan` });
+      res.status(400).json({ error: 'Tipe file atau ekstensi tidak diizinkan' });
+      return;
+    }
+    if (!validateMagicBytes(req.file.buffer, req.file.mimetype)) {
+      res.status(400).json({ error: 'Konten file tidak sesuai dengan tipe yang dinyatakan' });
       return;
     }
 
