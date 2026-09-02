@@ -48,14 +48,21 @@ const otpVerifyLimiter = rateLimit({
 // ─── Cookie helpers (SEC-4) ──────────────────────────────────────────────────
 
 /**
- * Set the JWT as an HttpOnly, SameSite=Strict cookie so it is inaccessible
- * to JavaScript and therefore immune to XSS-based token theft.
+ * Set the JWT as an HttpOnly cookie so it is inaccessible to JavaScript and
+ * therefore immune to XSS-based token theft.
+ *
+ * sameSite 'none' (not 'strict') is REQUIRED here: the frontend is served from
+ * crm.diurusin.id while the API lives on apis.diurusin.id — different sites in
+ * browser terms. With 'strict' the browser refuses to send the cookie on the
+ * cross-site API calls, logging the user out right after OTP verification.
+ * 'none' + 'secure' keeps the XSS protection (HttpOnly) while allowing the
+ * legitimate cross-site API pair. Requires HTTPS (already enforced in prod).
  */
 function setAuthCookie(res: Response, token: string): void {
   res.cookie('auth_token', token, {
     httpOnly: true,
     secure: IS_PRODUCTION,   // HTTPS-only in production
-    sameSite: 'strict',      // No cross-site requests
+    sameSite: 'none',        // cross-site API pair (crm.diurusin.id → apis.diurusin.id)
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days (matches JWT expiry)
     path: '/',
   });
