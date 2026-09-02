@@ -1,288 +1,276 @@
 # 🚀 Panduan Deployment CloudPanel (crm.diurusin.id & apis.diurusin.id)
 
-Panduan langkah demi langkah untuk melakukan **Deploy Awal** dan **Update Kode (`git pull`)** pada aplikasi Client CRM di VPS CloudPanel.
+Panduan resmi untuk **Deploy Awal**, **Update Kode**, dan **Rollback** aplikasi Client CRM di VPS CloudPanel — ditulis ulang berdasarkan kondisi server aktual (diverifikasi 2026-09-02, deploy commit `f319f29`).
 
 ---
 
-## 📌 Detail Environment & Path Domain
+## 📌 1. Arsitektur & Path
 
-| Layer | Domain | Path Root Domain | Target Root Build / Dist |
-| :--- | :--- | :--- | :--- |
-| **Backend API** | `apis.diurusin.id` | `/home/diurusin-apis/htdocs/apis.diurusin.id` | N/A (Port 3003) |
-| **Frontend UI** | `crm.diurusin.id` | `/home/diurusin-crm/htdocs/crm.diurusin.id` | `/home/diurusin-crm/htdocs/crm.diurusin.id/dist` |
+| Layer | Domain | User VPS | Path Root | Keterangan |
+| :--- | :--- | :--- | :--- | :--- |
+| **Backend API** | `apis.diurusin.id` | `diurusin-apis` | `/home/diurusin-apis/htdocs/apis.diurusin.id` | Node.js port 3003, PM2 `crm-backend` |
+| **Frontend UI** | `crm.diurusin.id` | `diurusin-crm` | `/home/diurusin-crm/htdocs/crm.diurusin.id` | Static build, nginx root = `dist/` |
 
-> **Repository Git**: `https://github.com/anggiadiputra/clients.git`
+> **Repository Git**: `https://github.com/anggiadiputra/clients.git` (branch **`main`**)
 
----
+### ⚠️ Penting: Pola "Monorepo Split" — pahami dulu sebelum deploy
 
-## 🗄️ Langkah 1: Buat Database MySQL di CloudPanel
+Kedua domain memakai **repo yang sama**, di-clone penuh di root domain masing-masing. Struktur fisiknya:
 
-1. Buka **CloudPanel Admin Dashboard**.
-2. Masuk ke **Databases** -> Klik **Add Database**.
-3. Isi data database:
-   - **Database Name**: `diurusin_crm`
-   - **Database User**: `diurusin_user`
-   - **Password**: *(Buat password yang kuat dan catat)*
-4. Klik **Create Database**.
+```
+apis.diurusin.id/          ← .git ADA di sini (checkout penuh repo)
+├── .git/                  ← git hanya melacak folder backend/ & frontend/ repo
+├── backend/               ← dari repo (SOURCE untuk build)
+├── frontend/              ← dari repo (tidak dipakai di sisi BE)
+├── .env                   ← UNTRACKED — konfigurasi produksi, JANGAN PERNAH hilang
+├── node_modules/          ← UNTRACKED — runtime ROOT (dipakai PM2)
+├── prisma/                ← UNTRACKED — salinan schema untuk runtime root
+├── dist/                  ← UNTRACKED — hasil build (dipakai PM2: dist/index.js)
+├── package.json           ← UNTRACKED — salinan runtime dari backend/package.json
+└── ecosystem.config.cjs   ← UNTRACKED — konfigurasi PM2
 
----
-
-## ⚙️ Langkah 2: Deployment BACKEND (`apis.diurusin.id`)
-
-### 1. Pindahkan File Backend ke Root Domain (Jika di-clone dalam subfolder)
-```bash
-cd /home/diurusin-apis/htdocs/apis.diurusin.id
-shopt -s dotglob
-mv clients/backend/* .
-rm -rf clients
+crm.diurusin.id/           ← .git ADA di sini (checkout penuh repo)
+├── .git/
+├── frontend/              ← dari repo (SOURCE untuk build, punya node_modules sendiri)
+├── backend/               ← dari repo (tidak dipakai di sisi FE)
+├── dist/                  ← UNTRACKED — hasil build (nginx root)
+└── package.json, vite.config.ts, dll — sisa proses deploy awal (UNTRACKED)
 ```
 
-### 2. Setup Environment Variable Backend (`.env`)
+Konsekuensi yang WAJIB dipahami:
+1. **`git reset --hard` AMAN** untuk `.env`, `node_modules`, `dist` — semua untracked, tidak tersentuh git.
+2. **JANGAN PERNAH `git clean -fd`** di BE — `node_modules/` root TIDAK ter-ignore dan akan TERHAPUS (dibuktikan saat audit 2026-09-02).
+3. **Build BE dilakukan dari `backend/`** tapi hasilnya (outDir `../dist`) jatuh ke dist ROOT, dan **prisma generate + node_modules ROOT** yang dipakai runtime. Kedua tempat harus disiapkan (lihat alur update).
+4. Status git akan selalu tampak "dirty" (folder cross-repo ter-delete: BE menghapus `frontend/`, FE menghapus `backend/`) — **itu normal** untuk pola split ini, bukan konflik.
+
+---
+
+## ⚡ 2. Update Rutin (git pull)
+
+> Prasyarat: semua perubahan sudah **commit + push ke `origin/main`** dari lokal (`Downloads/Clients`). Jangan pernah mengedit kode langsung di VPS.
+
+### 🟢 A. Update BACKEND (`apis.diurusin.id`)
+
+Jalankan sebagai **root**:
+
 ```bash
-cd /home/diurusin-apis/htdocs/apis.diurusin.id
-nano .env
+set -e
+APP=/home/diurusin-apis/htdocs/apis.diurusin.id
+
+# 1. Backup dulu (murah daripada menyesal)
+BK=/root/diurusin-be-backup-$(date +%Y%m%d-%H%M)
+mkdir -p "$BK"
+cp -a "$APP/.env" "$APP/package.json" "$APP/prisma" "$APP/dist" "$BK/"
+
+# 2. Sinkronkan source dengan GitHub
+cd "$APP"
+git fetch origin
+git reset --hard origin/main     # JANGAN git clean di sini!
+
+# 3. Install dependency & build dari backend/ (hasil masuk ke dist ROOT)
+cd "$APP/backend"
+cp "$APP/.env" .env
+su - diurusin-apis -c "cd $APP/backend && npm install --no-audit --no-fund && npx prisma db push --schema=prisma/schema.prisma && npm run build"
+
+# 4. Sinkronkan runtime ROOT (package.json + schema + prisma client ROOT)
+cp "$APP/backend/package.json" "$APP/package.json"
+cp "$APP/backend/prisma/schema.prisma" "$APP/prisma/schema.prisma"
+su - diurusin-apis -c "cd $APP && npm install --no-audit --no-fund && npx prisma generate --schema=prisma/schema.prisma --skip-generate 2>/dev/null || npx prisma generate --schema=prisma/schema.prisma"
+
+# 5. Restart via user yang benar + health check
+su - diurusin-apis -c "pm2 restart crm-backend --update-env && pm2 save"
+sleep 4
+curl -fsS https://apis.diurusin.id/api/setup/status && echo " ✔ BE OK"
 ```
-Isi konfigurasi berikut:
-```env
+
+**Kenapa langkah 4 wajib:** runtime PM2 berjalan dari ROOT (`dist/index.js` + `node_modules` root). Jika prisma client hanya ter-generate di `backend/node_modules`, PM2 akan crash dengan `@prisma/client did not initialize yet` (kejadian nyata 2026-09-02). Jika dependency baru ditambahkan di repo, `package.json` root juga harus disinkronkan + `npm install` di root.
+
+**Health check yang benar untuk BE ini** (tidak punya route `/` atau `/health` — 404 di root adalah NORMAL):
+- `https://apis.diurusin.id/api/setup/status` → harus `200`
+- `https://apis.diurusin.id/api/clients` tanpa token → harus `401` (auth guard hidup)
+
+### 🔵 B. Update FRONTEND (`crm.diurusin.id`)
+
+```bash
+set -e
+APP=/home/diurusin-crm/htdocs/crm.diurusin.id
+
+# 1. Backup dist
+BK=/root/diurusin-fe-backup-$(date +%Y%m%d-%H%M)
+mkdir -p "$BK" && cp -a "$APP/dist" "$BK/"
+
+# 2. Sinkronkan source + build dari frontend/ (outDir ../dist → dist ROOT otomatis)
+cd "$APP"
+git fetch origin
+git reset --hard origin/main
+cd "$APP/frontend"
+echo "VITE_API_URL=https://apis.diurusin.id" > .env
+su - diurusin-crm -c "cd $APP/frontend && npm install --no-audit --no-fund && npm run build"
+
+# 3. Health check
+curl -fsS -o /dev/null -w "FE: %{http_code}\n" https://crm.diurusin.id/
+```
+
+Frontend tidak perlu restart apa pun — statis; user cukup hard-refresh (nama bundle baru ber-hash baru).
+
+---
+
+## 🔙 3. Rollback
+
+```bash
+# BACKEND — kembalikan backup (atau reset ke commit lama lalu ulangi build)
+APP=/home/diurusin-apis/htdocs/apis.diurusin.id
+BK=/root/diurusin-be-backup-<tanggal>
+cp -a "$BK/.env" "$BK/package.json" "$APP/"
+cp -a "$BK/prisma" "$APP/"
+cp -a "$BK/dist" "$APP/"
+cd "$APP" && git reset --hard <commit-lama>
+su - diurusin-apis -c "cd $APP && npm install --no-audit --no-fund && pm2 restart crm-backend"
+```
+
+```bash
+# FRONTEND — kembalikan dist lama
+cp -a /root/diurusin-fe-backup-<tanggal>/dist/. /home/diurusin-crm/htdocs/crm.diurusin.id/dist/
+```
+
+---
+
+## 🛠️ 4. Deploy Awal (Setup Pertama Kali)
+
+### 4.1 Database (CloudPanel)
+
+1. CloudPanel → **Databases** → **Add Database**
+   - Name: `diurusincrm`, User: `diurusinuser`, password kuat (catat!)
+
+### 4.2 Backend
+
+```bash
+# sebagai root
+cd /home/diurusin-apis/htdocs
+git clone https://github.com/anggiadiputra/clients.git apis.diurusin.id
+
+cd apis.diurusin.id
+# .env produksi (JANGAN pernah di-commit)
+cat > .env <<'EOF'
 PORT=3003
 NODE_ENV=production
+DATABASE_URL="mysql://diurusinuser:<password>@127.0.0.1:3306/diurusincrm"
+JWT_SECRET="<string-acak-minimal-32-karakter>"
+EOF
+chmod 640 .env && chown diurusin-apis:diurusin-apis .env
 
-# Sesuaikan DB_NAME, DB_USER, DB_PASSWORD dari Langkah 1
-DATABASE_URL="mysql://diurusin_user:PASSWORD_DATABASE_ANDA@127.0.0.1:3306/diurusin_crm"
-
-# JWT Secret (Ganti dengan karakter acak & aman)
-JWT_SECRET="ganti_dengan_jwt_secret_super_aman_diurusin_123"
+# build + runtime root (ikuti alur bagian 2A langkah 3-4)
+# seed admin awal (SAKALI SAJA di awal):
+cd backend && cp ../.env .env
+su - diurusin-apis -c "cd $PWD && npx prisma db push && npm run seed"
 ```
 
-### 3. Install, Migrate DB & Build
+Daftarkan PM2 sebagai user `diurusin-apis`:
 ```bash
+su - diurusin-apis
 cd /home/diurusin-apis/htdocs/apis.diurusin.id
-npm install
-npx prisma db push
-npm run prisma:gen
-npm run seed
-npm run build
-```
-
-### 4. Jalankan Service Backend dengan PM2
-```bash
-pm2 restart ecosystem.config.cjs || pm2 start ecosystem.config.cjs
+pm2 start ecosystem.config.cjs   # name: crm-backend, dist/index.js, port 3003
 pm2 save
 ```
 
-### 5. Konfigurasi Reverse Proxy Nginx di CloudPanel
-1. Di **CloudPanel Dashboard**, pilih Site **`apis.diurusin.id`**.
-2. Masuk ke menu **Vhost**.
-3. Edit Vhost Nginx, arahkan `location /` ke port `3003`:
-   ```nginx
-   location / {
-       proxy_pass http://127.0.0.1:3003;
-       proxy_http_version 1.1;
-       proxy_set_header Upgrade $http_upgrade;
-       proxy_set_header Connection 'upgrade';
-       proxy_set_header Host $host;
-       proxy_cache_bypass $http_upgrade;
-       proxy_set_header X-Real-IP $remote_addr;
-       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-       proxy_set_header X-Forwarded-Proto $scheme;
-   }
-   ```
-4. Simpan Vhost & Aktifkan **SSL Let's Encrypt** pada tab **SSL/TLS**.
-
----
-
-## 🎨 Langkah 3: Deployment FRONTEND (`crm.diurusin.id`)
-
-### 1. Pindahkan File Frontend ke Root Domain
+Aktifkan unit systemd (auto-start setelah reboot):
 ```bash
-cd /home/diurusin-crm/htdocs/crm.diurusin.id
-shopt -s dotglob
-mv clients/frontend/* .
-rm -rf clients
+# sebagai root — /etc/systemd/system/pm2-diurusin-apis.service sudah terpasang di server ini
+systemctl enable --now pm2-diurusin-apis.service
 ```
 
-### 2. Setup Environment Variable Frontend (`.env`)
+> Unit systemd ini dipasang 2026-09-02 — sebelumnya `crm-backend` TIDAK naik otomatis setelah reboot.
+
+### 4.3 Frontend
+
 ```bash
-cd /home/diurusin-crm/htdocs/crm.diurusin.id
-nano .env
-```
-Isi dengan URL Backend API:
-```env
-VITE_API_URL=https://apis.diurusin.id
-```
-
-### 3. Install Dependencies & Build Frontend
-```bash
-cd /home/diurusin-crm/htdocs/crm.diurusin.id
-npm install
-npm run build
-```
-Hasil kompilasi file statis akan berada di `/home/diurusin-crm/htdocs/crm.diurusin.id/dist`.
-
-### 4. Konfigurasi Root Folder & SPA Routing di CloudPanel Vhost
-1. Di **CloudPanel Dashboard**, pilih Site **`crm.diurusin.id`**.
-2. Masuk ke menu **Vhost**.
-3. Ubah directive `root` agar mengarah ke folder build `dist`:
-   ```nginx
-   root /home/diurusin-crm/htdocs/crm.diurusin.id/dist;
-   ```
-4. Tambahkan aturan routing SPA (Single Page Application) di dalam `location /`:
-   ```nginx
-   location / {
-       try_files $uri $uri/ /index.html;
-   }
-   ```
-5. Simpan Vhost & Aktifkan **SSL Let's Encrypt** pada tab **SSL/TLS**.
-
----
-
-## 🔄 Langkah 4: Perintah UPDATE Kode Masa Mendatang (`git pull`)
-
-### ⚠️ Jika Muncul Error `fatal: detected dubious ownership` atau `not a git repository`
-Jalankan perintah **Fix 1-Liner** di bawah ini (akan otomatis menambahkan `safe.directory` dan menginisialisasi repository Git):
-
-#### 🛠️ Fix & Build — FRONTEND (`crm.diurusin.id`):
-```bash
-git config --global --add safe.directory '*' && cd /home/diurusin-crm/htdocs/crm.diurusin.id && git init 2>/dev/null || true && git remote remove origin 2>/dev/null || true && git remote add origin https://github.com/anggiadiputra/clients.git && git fetch origin && git reset --hard origin/main && cd frontend && echo "VITE_API_URL=https://apis.diurusin.id" > .env && npm install && npm run build
+cd /home/diurusin-crm/htdocs
+git clone https://github.com/anggiadiputra/clients.git crm.diurusin.id
+cd crm.diurusin.id/frontend
+echo "VITE_API_URL=https://apis.diurusin.id" > .env
+# sebagai user diurusin-crm:
+npm install && npm run build   # outDir ../dist → dist/ di root domain
 ```
 
-#### 🛠️ Fix & Build — BACKEND (`apis.diurusin.id`):
-```bash
-git config --global --add safe.directory '*' && cd /home/diurusin-apis/htdocs/apis.diurusin.id && git init 2>/dev/null || true && git remote remove origin 2>/dev/null || true && git remote add origin https://github.com/anggiadiputra/clients.git && git fetch origin && git reset --hard origin/main && cd backend && cp ../.env .env 2>/dev/null || true && npm install && npx prisma db push && npm run build && pm2 restart ecosystem.config.cjs || pm2 start ecosystem.config.cjs
-```
+### 4.4 Nginx Vhost (CloudPanel)
 
----
-
-### ⚡ 1-Liner Update Rutin Masa Mendatang
-
-#### Update BACKEND API (`apis.diurusin.id`):
-```bash
-cd /home/diurusin-apis/htdocs/apis.diurusin.id && git pull origin main && npm install && npx prisma db push && npm run build && (pm2 restart ecosystem.config.cjs || pm2 start ecosystem.config.cjs)
-```
-
-#### Update FRONTEND Dashboard (`crm.diurusin.id`):
-```bash
-cd /home/diurusin-crm/htdocs/crm.diurusin.id && git pull origin main && echo "VITE_API_URL=https://apis.diurusin.id" > .env && npm install && npm run build
-```
-
----
-
-## 🔍 TroubleShooting & Cek Log
-
-- **SSL Let's Encrypt 404 Error (`/.well-known/acme-challenge`)**:
-  Jika terjadi error 404 saat request SSL pada `crm.diurusin.id`, tambahkan blok ini di Vhost CloudPanel di atas `location /`:
-  ```nginx
-  location ^~ /.well-known/acme-challenge/ {
-      allow all;
-      root /home/diurusin-crm/htdocs/crm.diurusin.id;
-      default_type "text/plain";
-      try_files $uri =404;
-  }
-  ```
-  Atau buat symlink via SSH: `ln -sfn /home/diurusin-crm/htdocs/crm.diurusin.id/.well-known /home/diurusin-crm/htdocs/crm.diurusin.id/dist/.well-known`
-
-- **Cek Status Service Backend (PM2)**:
-  ```bash
-  pm2 status
-  pm2 logs crm-backend
-  ```
-- **Tes API Backend**:
-  ```bash
-  curl -I https://apis.diurusin.id/health
-  ```
-
----
-
-## 🔒 Opsional: Pemasangan Security Headers di Nginx VHost
-
-Untuk meningkatkan skor keamanan web (A+ rating pada SecurityHeaders.com), tambahkan directive berikut di dalam blok VHost CloudPanel (`crm.diurusin.id` & `apis.diurusin.id`):
-
+**`apis.diurusin.id`** — reverse proxy ke port 3003:
 ```nginx
-server {
-  listen 80;
-  listen [::]:80;
-  listen 443 quic;
-  listen 443 ssl;
-  listen [::]:443 quic;
-  listen [::]:443 ssl;
-  http2 on;
-  http3 off;
-  {{ssl_certificate_key}}
-  {{ssl_certificate}}
-  server_name crm.diurusin.id;
-  root /home/diurusin-crm/htdocs/crm.diurusin.id/dist;
-
-  # --- Security Headers ---
-  add_header X-Frame-Options "SAMEORIGIN" always;
-  add_header X-Content-Type-Options "nosniff" always;
-  add_header X-XSS-Protection "1; mode=block" always;
-  add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-  add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
-  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
-
-  # Forward semua request /api/ ke Backend Node.js
-  location /api/ {
-    proxy_pass http://127.0.0.1:3003/api/;
+location / {
+    proxy_pass http://127.0.0.1:3003;
     proxy_http_version 1.1;
-    dav_methods PUT DELETE;
-    proxy_method $request_method;
-    
-    proxy_set_header X-Forwarded-Host $host;
-    proxy_set_header X-Forwarded-Server $host;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection 'upgrade';
+    proxy_set_header Host $host;
+    proxy_cache_bypass $http_upgrade;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+**`crm.diurusin.id`** — static SPA + proxy `/api/` ke backend:
+```nginx
+root /home/diurusin-crm/htdocs/crm.diurusin.id/dist;
+index index.html;
+
+location /api/ {
+    proxy_pass http://127.0.0.1:3003/api/;
     proxy_set_header Host $host;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "Upgrade";
-    proxy_pass_request_headers on;
-  }
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
 
-  location / {
+location / {
     try_files $uri $uri/ /index.html;
-  }
+}
 
-  location ^~ /.well-known/acme-challenge/ {
+location ^~ /.well-known/acme-challenge/ {
     allow all;
     root /home/diurusin-crm/htdocs/crm.diurusin.id;
     default_type "text/plain";
     try_files $uri =404;
-  }
-
-  {{nginx_access_log}}
-  {{nginx_error_log}}
-
-  if ($scheme != "https") {
-    rewrite ^ https://$host$request_uri permanent;
-  }
-
-  location ~ /.well-known {
-    auth_basic off;
-    allow all;
-  }
-
-  {{settings}}
-
-  include /etc/nginx/global_settings;
-
-  index index.html;
-
-  location ~* ^.+\.(css|js|jpg|jpeg|gif|png|ico|gz|svg|svgz|ttf|otf|woff|woff2|eot|mp4|ogg|ogv|webm|webp|zip|swf)$ {
-    add_header Access-Control-Allow-Origin "*";
-    add_header alt-svc 'h3=":443"; ma=86400';
-    expires max;
-    access_log off;
-  }
-
-  if (-f $request_filename) {
-    break;
-  }
 }
 ```
 
+Lalu aktifkan SSL Let's Encrypt di tab SSL/TLS untuk kedua site.
 
 ---
 
-## 🔑 Kredensial Default Seed Admin
-- **Email**: `admin@example.com` (atau sesuai ADMIN_EMAIL di .env)
-- **Password**: `admin123456`
+## 🔍 5. Troubleshooting (berdasarkan kejadian nyata)
+
+| Gejala | Akar masalah | Solusi |
+| :--- | :--- | :--- |
+| PM2 `crm-backend` status **errored**, log: `@prisma/client did not initialize yet` | Prisma client hanya ter-generate di `backend/node_modules`, padahal runtime pakai `node_modules` ROOT | `su - diurusin-apis -c "cd /home/diurusin-apis/htdocs/apis.diurusin.id && npx prisma generate --schema=prisma/schema.prisma"` lalu `pm2 restart crm-backend` |
+| `prisma db push` menolak: *"about to drop the column tokenVersion"* | `prisma/schema.prisma` di ROOT masih versi lama (tidak sinkron dengan repo) | `cp backend/prisma/schema.prisma prisma/schema.prisma` lalu push ulang. **JANGAN asal `--accept-data-loss`** |
+| `git pull` error / konflik | Ada edit lokal di checkout VPS | Pakai alur bagian 2 (`fetch + reset --hard`). Semua file penting (`.env`, `dist`, `node_modules`) untracked dan aman |
+| `fatal: detected dubious ownership` | Git root vs user eksekusi berbeda | `git config --global --add safe.directory /home/diurusin-apis/htdocs/apis.diurusin.id` (dan path FE) |
+| BE 404 di `/` atau `/health` | **Normal** — backend ini tidak punya route root/health | Gunakan `/api/setup/status` (200) dan `/api/clients` (401) sebagai health check |
+| Dependency baru (mis. `helmet`) tidak terpasang saat runtime | `package.json` ROOT masih lama | `cp backend/package.json package.json && npm install` di root (langkah 4 alur 2A) |
+| Setelah reboot VPS, backend mati | (Sejarah: dulu tanpa systemd) | Sudah diperbaiki — unit `pm2-diurusin-apis.service` enabled; cek `systemctl status pm2-diurusin-apis` |
+| SSL Let's Encrypt 404 saat validasi | ACME challenge tidak terjangkau dari dist/ | Blok `location ^~ /.well-known/acme-challenge/` di vhost (lihat 4.4) |
+
+**Cek log:**
+```bash
+su - diurusin-apis -c "pm2 logs crm-backend --lines 50"
+journalctl -u pm2-diurusin-apis.service -n 50
+```
+
+---
+
+## 📌 6. Aturan Emas
+
+1. **Satu arah**: lokal → GitHub → VPS. Jangan edit kode di VPS.
+2. **`.env` produksi hanya hidup di server** — tidak pernah di-commit; backup-nya disimpan terpisah dan rahasia.
+3. **Jangan `git clean`** di BE — `node_modules` root tidak ter-ignore.
+4. **Build BE selalu dua sisi**: `backend/` (source) dan ROOT (prisma generate + npm install) — keduanya dipakai runtime.
+5. **Restart PM2 selalu sebagai `diurusin-apis`** (`su - diurusin-apis -c "pm2 restart crm-backend"`), restart sebagai root menciptakan proses yatim milik root.
+6. **Deploy = pull + build + sync + restart + health check** (`/api/setup/status` 200). Gagal → rollback (bagian 3), bukan tambal sulam.
+
+---
+
+## 🔑 Kredensial Seed Admin (hanya deploy awal)
+
+- **Email**: `admin@example.com` (atau sesuai `ADMIN_EMAIL` di `.env`)
+- **Password**: `admin123456` — **WAJIB diganti segera** setelah login pertama.
