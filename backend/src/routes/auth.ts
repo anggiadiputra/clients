@@ -72,7 +72,7 @@ function clearAuthCookie(res: Response): void {
   res.clearCookie('auth_token', {
     httpOnly: true,
     secure: IS_PRODUCTION,
-    sameSite: 'strict',
+    sameSite: 'none', // MUST match setAuthCookie, or the browser won't clear it
     path: '/',
   });
 }
