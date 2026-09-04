@@ -147,7 +147,9 @@ export async function sendOtp(
   code: string,
   purpose: 'login' | 'register' | 'reset-password' = 'login'
 ): Promise<void> {
-  console.log(`🔑 [OTP GENERATED] Email: ${email} | Code: ${code} | Purpose: ${purpose}`);
+  // SECURITY: log destination + purpose only — never the OTP code. The code is
+  // a live credential; logging it leaks OTPs into production/PM2 logs.
+  console.log(`🔑 [OTP GENERATED] Email: ${email} | Purpose: ${purpose}`);
   let providerConfigured = false;
   try {
     const settings = await prisma.setting.findMany({

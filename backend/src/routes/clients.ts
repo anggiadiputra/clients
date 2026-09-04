@@ -15,6 +15,19 @@ const integrationLimiter = rateLimit({
   message: { error: 'Terlalu banyak percobaan validasi WhatsApp. Coba lagi nanti.' },
 });
 
+// SECURITY: POST/PUT /api/clients call validateWhatsappNumber() (an external
+// Fonnte API request) when whatsapp is set. Without a limit, a user with write
+// access could create/update many clients to burn the Fonnte quota. This
+// bounds how many client Create/Update requests a single IP can send.
+const clientWriteLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: false,
+  message: { error: 'Terlalu banyak permintaan kelola client. Coba lagi nanti.' },
+});
+
 const clientsResponse = (clients: any[]) =>
   clients.map((c) => ({
     ...c,
@@ -107,7 +120,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/clients
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', clientWriteLimiter, async (req: Request, res: Response) => {
   try {
     const { name, email, whatsapp, website, address, status } = req.body;
 
@@ -162,7 +175,7 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 // PUT /api/clients/:id
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', clientWriteLimiter, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id as string);
     const { name, email, whatsapp, website, address, status } = req.body;

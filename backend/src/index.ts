@@ -13,7 +13,7 @@ import accessRouter from './routes/access';
 import projectsRouter from './routes/projects';
 import setupRouter from './routes/setup';
 import { requireAuth } from './middleware/auth';
-import { requirePageAccess } from './lib/rbac';
+import { requirePageAccess, requireWriteAccess } from './lib/rbac';
 import prisma from './lib/prisma';
 import { ALLOWED_ORIGINS } from './lib/config';
 
@@ -85,9 +85,9 @@ app.get('/api/settings/branding', requireAuth, async (_req, res) => {
     res.status(500).json({ error: 'Failed to fetch branding' });
   }
 });
-app.use('/api/clients', requireAuth, requirePageAccess('clients'), clientsRouter);
-app.use('/api/invoices', requireAuth, requirePageAccess('invoices'), invoicesRouter);
-app.use('/api/services', requireAuth, requirePageAccess('services'), servicesRouter);
+app.use('/api/clients', requireAuth, requirePageAccess('clients'), requireWriteAccess, clientsRouter);
+app.use('/api/invoices', requireAuth, requirePageAccess('invoices'), requireWriteAccess, invoicesRouter);
+app.use('/api/services', requireAuth, requirePageAccess('services'), requireWriteAccess, servicesRouter);
 // Public-for-auth: PIC options used by project assignment dropdowns.
 app.get('/api/users/pic-options', requireAuth, async (_req, res) => {
   try {
@@ -105,7 +105,7 @@ app.get('/api/users/pic-options', requireAuth, async (_req, res) => {
 app.use('/api/users', requireAuth, requirePageAccess('users'), usersRouter);
 app.use('/api/access', requireAuth, accessRouter);
 app.use('/api/settings', requireAuth, requirePageAccess('settings'), settingsRouter);
-app.use('/api/projects', requireAuth, requirePageAccess('projects'), projectsRouter);
+app.use('/api/projects', requireAuth, requirePageAccess('projects'), requireWriteAccess, projectsRouter);
 app.use('/api/export', requireAuth, requirePageAccess('export'), exportRouter);
 
 app.listen(PORT, () => {

@@ -68,3 +68,23 @@ export function requirePageAccess(pageKey: string) {
     next();
   };
 }
+
+/**
+ * SECURITY: prevent the read-only VIEWER role from any non-GET (mutating)
+ * request. `requirePageAccess` only checks whether a role can view a page — a
+ * VIEWER who has page access could otherwise create/update/delete records.
+ * Apply this to routers that contain write endpoints (clients, invoices,
+ * services, projects). ADMIN and STAFF pass through unchanged.
+ */
+export function requireWriteAccess(req: Request, res: Response, next: NextFunction) {
+  const auth = req.authUser;
+  if (!auth) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  if (auth.role === 'VIEWER' && req.method !== 'GET') {
+    res.status(403).json({ error: 'Forbidden: VIEWER hanya dapat melihat data' });
+    return;
+  }
+  next();
+}
