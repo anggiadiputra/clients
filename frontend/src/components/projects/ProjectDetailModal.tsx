@@ -12,7 +12,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import {
   fetchProject, updateProject, addProjectComment, deleteProjectComment,
-  uploadProjectAttachment, deleteProjectAttachment,
+  uploadProjectAttachment, deleteProjectAttachment, deleteProject,
 } from '../../lib/api';
 import ConfirmModal from '../ConfirmModal';
 import { useSettings } from '../../contexts/SettingsContext';
@@ -143,6 +143,25 @@ export default function ProjectDetailModal({ projectId, clients, users, onClose,
     }
   }
 
+  async function handleDeleteProject() {
+    if (!data) return;
+    setConfirmState({
+      open: true,
+      title: 'Hapus Proyek?',
+      description: `Proyek "${data.title}" beserta seluruh komentar, lampiran, dan aktivitasnya akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan.`,
+      onConfirm: async () => {
+        setConfirmState((prev) => ({ ...prev, open: false }));
+        try {
+          await deleteProject(data.id);
+          onClose();
+          onChanged();
+        } catch (e: any) {
+          setErr(e.message || 'Gagal menghapus proyek');
+        }
+      },
+    });
+  }
+
   function handleDeleteComment(c: ProjectComment) {
     if (!data) return;
     setConfirmState({
@@ -268,6 +287,12 @@ export default function ProjectDetailModal({ projectId, clients, users, onClose,
                   <button onClick={() => setEditing(true)} className="px-2.5 py-1.5 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg inline-flex items-center gap-1.5 text-xs font-semibold border border-gray-200" title="Edit proyek">
                     <Edit2 className="w-3.5 h-3.5" />
                     Edit
+                  </button>
+                )}
+                {!editing && isAdmin && (
+                  <button onClick={handleDeleteProject} className="px-2.5 py-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg inline-flex items-center gap-1.5 text-xs font-semibold border border-red-200" title="Hapus proyek">
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Hapus
                   </button>
                 )}
                 <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
