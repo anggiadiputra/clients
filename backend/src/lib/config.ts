@@ -24,4 +24,8 @@ export const JWT_SECRET = resolveJwtSecret();
 export const ALLOWED_ORIGINS: string[] = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
   : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:3001', 'https://crm.diurusin.id', 'https://apis.diurusin.id'];
+// Sliding-session inactivity timeout (minutes). A user is auto-logged-out after
+// this many minutes without any authenticated request. Default 30 (aligned with
+// dash.ekstensi.id). Configure via SESSION_TIMEOUT_MIN in .env if needed.
+export const SESSION_TIMEOUT_MIN = parseInt(process.env.SESSION_TIMEOUT_MIN || '30', 10);
 

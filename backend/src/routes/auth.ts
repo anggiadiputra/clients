@@ -204,6 +204,9 @@ router.post('/otp/verify', otpVerifyLimiter, async (req: Request, res: Response)
 
     const token = generateToken(user.id, user.email, user.role, user.tokenVersion);
 
+    // Sliding-session: stamp lastActiveAt so the inactivity clock starts at login.
+    await prisma.user.update({ where: { id: user.id }, data: { lastActiveAt: new Date() } });
+
     // SEC-4 fix: set token as HttpOnly cookie (inaccessible to JS / XSS)
     setAuthCookie(res, token);
 
