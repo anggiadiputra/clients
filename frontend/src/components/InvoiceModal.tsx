@@ -103,7 +103,7 @@ export default function InvoiceModal({ open, onClose, onCreated, services, mode 
 
   const filteredClients = clients.filter(c =>
     c.name.toLowerCase().includes(clientSearch.toLowerCase()) &&
-    ['KERJAKAN', 'MASA_GARANSI', 'SELESAI'].includes(c.status)
+    ['DEAL', 'KERJAKAN', 'MASA_GARANSI', 'SELESAI'].includes(c.status)
   );
 
   const filteredServices = services.filter(s =>
